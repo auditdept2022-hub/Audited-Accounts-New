@@ -570,14 +570,12 @@
   /* Status breakdown now uses the .status-dropdown component defined
      above (matching .branch-dropdown), instead of a native <select>. */
   @media (max-width:680px){
-    .status-dropdown{ flex:1 1 auto; }
-    /* Match the branch dropdown's mobile footprint exactly (same toggle
-       max-width/padding, same name/count type sizes, same panel width)
-       so the two dropdowns read as one consistent pair instead of one
-       looking noticeably bigger than the other — and both a touch
-       smaller than before. */
-    .status-dropdown-toggle{ font-size:11.5px; padding:4px 7px; max-width:140px; }
-    .status-dropdown-name{ font-size:11px; max-width:82px; }
+    /* Split the row 50/50 with .branch-dropdown (see the matching
+       comment there) so both toggles always stay side by side instead
+       of the pair dropping to two stacked rows on narrower phones. */
+    .status-dropdown{ flex:1 1 0; min-width:0; }
+    .status-dropdown-toggle{ font-size:11.5px; padding:4px 7px; max-width:none; width:100%; box-sizing:border-box; }
+    .status-dropdown-name{ font-size:11px; max-width:none; }
     .status-dropdown-count{ font-size:9px; }
     .status-dropdown-panel{ width:210px; }
   }
@@ -1179,8 +1177,16 @@
       max-width:120px; font-size:10.5px; padding:4px 20px 4px 8px; border-radius:6px;
       background-position:right 7px center; background-size:10px 10px;
     }
-    .branch-dropdown-toggle{ max-width:140px; padding:4px 7px; }
-    .branch-dropdown-name{ font-size:11px; max-width:82px; }
+    /* Branch and status sit side by side inside .brand-dropdowns-row
+       (flex, wrap). Fixed max-widths (140px each) added up to more than
+       some narrower phones actually have available, so the pair would
+       drop to two stacked rows instead of staying side by side. Splitting
+       the row 50/50 with flex + min-width:0 guarantees both always fit
+       on one line, with the name/count text ellipsis-truncating first
+       instead of forcing a wrap. */
+    .branch-dropdown{ flex:1 1 0; min-width:0; }
+    .branch-dropdown-toggle{ max-width:none; width:100%; padding:4px 7px; box-sizing:border-box; }
+    .branch-dropdown-name{ font-size:11px; max-width:none; }
     .branch-dropdown-count{ font-size:9px; }
     .branch-dropdown-panel{ width:210px; }
     /* Icons + sync clock used to sit in one horizontal row that could
@@ -1194,6 +1200,16 @@
       position:absolute; top:13px; right:16px;
       display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center;
       gap:6px 8px; margin-top:0; max-width:calc(100vw - 32px);
+    }
+    /* The title sits in normal flow (topbar-actions above is pulled out
+       of flow, so it reserves no space) -- on phones where this font
+       renders a bit wider, "Audited Accounts" could run straight under
+       the icon cluster instead of stopping short of it. Reserve room for
+       the icon cluster's width so the title truncates with an ellipsis
+       instead of visually colliding with the icons. */
+    .brand h1{
+      max-width:calc(100vw - 220px); overflow:hidden; text-overflow:ellipsis;
+      white-space:nowrap; display:block;
     }
     .topbar-actions .sync-info{ display:none; }
     /* Small sync-status dot placed under the logo/title, replacing the
