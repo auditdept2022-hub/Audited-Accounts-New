@@ -6,15 +6,23 @@
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui", "browser"],
+  "display_override": [
+    "standalone",
+    "minimal-ui",
+    "browser",
+    "window-controls-overlay"
+  ],
   "orientation": "portrait-primary",
-  "theme_color": "#0A1B2E",
-  "background_color": "#0A1B2E",
+  "theme_color": "#096777",
+  "background_color": "#035366",
   "lang": "en",
   "dir": "ltr",
-  "categories": ["business", "finance", "productivity"],
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
   "prefer_related_applications": false,
-  "related_applications": [],
   "launch_handler": {
     "client_mode": "auto"
   },
