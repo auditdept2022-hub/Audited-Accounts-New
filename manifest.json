@@ -13,8 +13,8 @@
     "window-controls-overlay"
   ],
   "orientation": "portrait-primary",
-  "theme_color": "#000000",
-  "background_color": "#000000",
+  "theme_color": "#0A1B2E",
+  "background_color": "#0B141F",
   "lang": "en",
   "dir": "ltr",
   "categories": [
