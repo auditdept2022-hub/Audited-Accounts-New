@@ -1144,10 +1144,10 @@
     transition:border-color .15s ease, box-shadow .15s ease;
   }
   textarea:focus{ outline:none; border-color:var(--brass); box-shadow:0 0 0 3px var(--brass-light); }
-  /* Mic icon embedded inside the top-left corner of the remarks textarea,
-     replacing the old full-width "Dictate remarks" button above it. */
   .remarks-input-wrap{ position:relative; }
-  .remarks-input-wrap textarea{ padding-left:38px; }
+  /* Auto-grows via JS (autosizeRemarksTextarea) as the auditor types, so
+     it never needs its own scrollbar or a manual drag-resize handle. */
+  .remarks-input-wrap textarea{ resize:none; overflow:hidden; }
   .mic-btn-embedded{
     position:absolute; top:7px; left:7px; z-index:2;
     width:24px; height:24px; border-radius:50%;
@@ -1323,9 +1323,6 @@
         padding:5px 7px; font-size:10.5px; line-height:1.2;
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       }
-    .mic-standalone-hint{ margin:3px 0 5px; }
-    .mic-btn-embedded{ width:22px; height:22px; top:6px; left:6px; }
-    .remarks-input-wrap textarea{ padding-left:34px; }
     textarea{ min-height:42px; padding:6px 9px; }
     .save-row{ margin-top:6px; }
     .settings-modal .sm-actions{ flex-direction:column; }
@@ -3371,168 +3368,19 @@
     if (b && state.selected) saveDraft(b.branch, row, updated);
   }
 
-  // ---- Speech-to-text for Auditor Remarks ----
+  // ---- Speech-to-text support detection (used only by the AI Auditor
+  // chat's voice input further down -- the old Auditor Remarks dictation
+  // mic was removed since it wasn't working reliably). ----
   var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
   var micSupported = !!SpeechRecognitionCtor;
-  var micRecognizer = null;
-  var micBaseText = ''; // remarks text as it was when recording started
 
-  function micToolbarHtml(){
-    if (!micSupported){
-      return '<div class="mic-hint err mic-standalone-hint">Voice dictation isn\'t supported in this browser. Try Chrome or Edge.</div>';
-    }
-    var hint = '';
-    if (state.micRecording) hint = '<div class="mic-hint mic-standalone-hint">Listening… speak naturally, tap the mic to stop.</div>';
-    else if (state.micError) hint = '<div class="mic-hint err mic-standalone-hint">' + esc(state.micError) + '</div>';
-    return hint;
-  }
-
-  // Small round mic icon embedded inside the remarks textarea itself
-  // (top-left corner) instead of a separate full-width button above it.
-  function micButtonHtml(){
-    if (!micSupported) return '';
-    var label = state.micRecording ? 'Stop dictation' : 'Dictate remarks';
-    return (
-      '<button type="button" class="mic-btn-embedded' + (state.micRecording ? ' recording' : '') + '" id="micBtn" title="' + esc(label) + '" aria-label="' + esc(label) + '">' +
-        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>' +
-      '</button>'
-    );
-  }
-
-  function stopMic(){
-    if (micRecognizer){
-      try{ micRecognizer.stop(); }catch(e){}
-    }
-    state.micRecording = false;
-    state.micInterim = '';
-    releaseMicStream();
-  }
-
-  var micStream = null; // keeps the getUserMedia track open while dictating
-
-  function micPermissionDeniedMessage(){
-    // file:// pages can't show a permission prompt at all in most browsers —
-    // give a message that explains that instead of a generic "blocked" one.
-    if (location.protocol === 'file:'){
-      return 'This page was opened directly from a file, so the browser won\'t show a mic permission prompt. Open it through a web address (http/https) instead, then allow the mic when asked.';
-    }
-    return 'Microphone access was blocked. Click the padlock/site-info icon next to the address bar, allow Microphone for this page, then tap the mic again.';
-  }
-
-  function startMic(){
-    if (!micSupported){
-      state.micError = 'Voice dictation isn\'t supported in this browser.';
-      renderKeepScroll();
-      return;
-    }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      state.micError = micPermissionDeniedMessage();
-      renderKeepScroll();
-      return;
-    }
-
-    state.micError = '';
-    renderKeepScroll();
-
-    // Explicitly ask for mic permission first. This is what actually triggers
-    // the browser's "Allow microphone?" prompt on a direct tap; some browsers
-    // won't reliably show that prompt from SpeechRecognition.start() alone.
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(function(stream){
-        micStream = stream;
-        beginRecognition();
-      })
-      .catch(function(err){
-        state.micRecording = false;
-        if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')){
-          state.micError = micPermissionDeniedMessage();
-        } else if (err && err.name === 'NotFoundError'){
-          state.micError = 'No microphone was found on this device.';
-        } else {
-          state.micError = 'Could not access the microphone (' + (err && err.name ? err.name : 'unknown error') + ').';
-        }
-        renderKeepScroll();
-      });
-  }
-
-  function beginRecognition(){
-    var ta = document.getElementById('remarksInput');
-    micBaseText = ta ? ta.value : '';
-    if (micBaseText && !/\s$/.test(micBaseText)) micBaseText += ' ';
-
-    micRecognizer = new SpeechRecognitionCtor();
-    micRecognizer.lang = 'en-PH';
-    micRecognizer.continuous = true;
-    micRecognizer.interimResults = true;
-
-    micRecognizer.onresult = function(event){
-      var finalChunk = '';
-      var interimChunk = '';
-      for (var i = event.resultIndex; i < event.results.length; i++){
-        var res = event.results[i];
-        if (res.isFinal) finalChunk += res[0].transcript;
-        else interimChunk += res[0].transcript;
-      }
-      if (finalChunk){
-        micBaseText += finalChunk.trim() + ' ';
-      }
-      var taEl = document.getElementById('remarksInput');
-      if (taEl) taEl.value = micBaseText;
-      var micB = currentBranch();
-      if (micB && state.selected) saveDraft(micB.branch, state.selected._row, micBaseText);
-      state.micInterim = interimChunk.trim();
-      var interimDiv = document.querySelector('.mic-interim');
-      if (interimDiv) interimDiv.textContent = state.micInterim ? ('Hearing: "' + state.micInterim + '"') : '';
-    };
-
-    micRecognizer.onerror = function(event){
-      state.micRecording = false;
-      state.micInterim = '';
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed'){
-        state.micError = micPermissionDeniedMessage();
-      } else if (event.error === 'no-speech'){
-        state.micError = 'No speech detected — tap the mic and try again.';
-      } else {
-        state.micError = 'Dictation stopped (' + event.error + ').';
-      }
-      releaseMicStream();
-      renderKeepScroll();
-    };
-
-    micRecognizer.onend = function(){
-      // Browsers auto-stop after a pause; restart seamlessly if the user hasn't pressed Stop.
-      if (state.micRecording){
-        try{ micRecognizer.start(); }catch(e){}
-      } else {
-        releaseMicStream();
-        renderKeepScroll();
-      }
-    };
-
-    try{
-      micRecognizer.start();
-      state.micRecording = true;
-      state.micError = '';
-      state.micInterim = '';
-      renderKeepScroll();
-    }catch(e){
-      state.micError = 'Could not start the microphone.';
-      releaseMicStream();
-      renderKeepScroll();
-    }
-  }
-
-  function releaseMicStream(){
-    if (micStream){
-      try{ micStream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
-      micStream = null;
-    }
-  }
-
-  function handleMicToggle(){
-    if (state.micRecording) stopMic();
-    else startMic();
-    renderKeepScroll();
+  // Grows the Auditor Remarks textarea to fit its content so a long
+  // remark is fully visible without scrolling inside the box -- reset to
+  // 'auto' first so it can shrink back down too (e.g. after deleting text).
+  function autosizeRemarksTextarea(el){
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
   }
 
   function esc(s){
@@ -4003,7 +3851,6 @@
   }
   window.addEventListener('popstate', function(){
     if (state.selected){
-      stopMic();
       state.selected = null;
       state.openPicker = '';
       render();
@@ -6050,11 +5897,8 @@
             '<div class="old-remarks">' + esc(r['Old Remarks'] || 'None.') + '</div>' +
             '<div class="section-label">Auditor remarks</div>' +
             '<div class="remarks-input-wrap">' +
-              micButtonHtml() +
-              '<textarea id="remarksInput" placeholder="Type remarks, or tap the mic to dictate...">' + esc(remarksBoxValue) + '</textarea>' +
+              '<textarea id="remarksInput" placeholder="Type remarks...">' + esc(remarksBoxValue) + '</textarea>' +
             '</div>' +
-            micToolbarHtml() +
-            '<div class="mic-interim">' + (state.micInterim ? 'Hearing: "' + esc(state.micInterim) + '"' : '') + '</div>' +
             draftStatus +
             '<div class="save-row">' +
               '<button class="btn gold" id="saveBtn"' + (state.savingRemarks ? ' disabled' : '') + '>' + (state.savingRemarks ? 'Saving...' : 'Save remarks') + '</button>' +
@@ -8534,6 +8378,11 @@
     };
     var remarksInputEl = document.getElementById('remarksInput');
     if (remarksInputEl){
+      // Auto-grow the box as the auditor types, instead of scrolling
+      // inside a fixed-height textarea -- sized once right away so a
+      // long saved/draft remark opens already fully expanded, then
+      // re-sized on every keystroke.
+      autosizeRemarksTextarea(remarksInputEl);
       remarksInputEl.oninput = function(e){
         // Typing only ever updates the local draft now. Nothing is pushed
         // to the sheet until the user taps Save (or the "Already made a
@@ -8542,6 +8391,7 @@
         // cursor and scrambling half-typed remarks.
         var b = currentBranch();
         if (b && state.selected) saveDraft(b.branch, state.selected._row, e.target.value);
+        autosizeRemarksTextarea(e.target);
       };
     }
     document.querySelectorAll('[data-toggle-field]').forEach(function(btn){
@@ -8561,8 +8411,6 @@
         handleFieldChange(f, v);
       };
     });
-    var micBtn = document.getElementById('micBtn');
-    if (micBtn) micBtn.onclick = handleMicToggle;
   }
 
   function renderKeepFocus(){
@@ -10056,12 +9904,9 @@
   }
 
   // ---- Optional voice input for the chat box ----
-  // A DELIBERATELY SEPARATE SpeechRecognition instance/state from the
-  // dashboard's existing Auditor Remarks dictation (micRecognizer /
-  // startMic() / stopMic() / state.micRecording above) -- they share no
-  // variables, so using one can never start, stop, or interfere with the
-  // other. Falls back silently (no button shown) if the browser doesn't
-  // support SpeechRecognition at all, same as the remarks dictation does.
+  // Its own SpeechRecognition instance/state, independent of anything
+  // else on the page. Falls back silently (no button shown) if the
+  // browser doesn't support SpeechRecognition at all.
   var aiChatRecognizer = null;
   function toggleAiChatMic(){
     if (aiState.micRecording){ stopAiChatMic(); aiRender(); return; }
