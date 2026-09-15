@@ -63,10 +63,17 @@
     padding:12px 22px 10px;
     display:flex; align-items:center; gap:12px; flex-wrap:wrap;
     border-bottom:3px solid var(--brass);
-    /* Locked/fixed header: stays pinned to the top of the viewport while
-       the customer list scrolls underneath it, instead of scrolling away
-       with the page. z-index keeps it above the table and cards below. */
-    position:sticky; top:0; z-index:50;
+    /* Locked/fixed header on both mobile and desktop: position:sticky was
+       tried first, but Safari (notably iOS) silently breaks sticky
+       positioning whenever ANY ancestor has overflow set to something
+       other than visible -- and html/body here already have
+       overflow-x:hidden (further up in this file) for unrelated reasons.
+       position:fixed has no such caveat: it always pins relative to the
+       viewport. The corresponding space it no longer takes up in normal
+       flow is restored via body's padding-top, kept in sync with this
+       bar's real (wrapping-dependent) height by the small script near
+       the end of this file -- see "Locked header spacing" below. */
+    position:fixed; top:0; left:0; right:0; width:100%; z-index:50;
     /* Keep decorative overflow from affecting the layout, but allow the
        settings menu to escape below the bar instead of being clipped. */
     overflow:visible;
@@ -8662,6 +8669,50 @@
     getField: getField,
     rowSeverity: rowSeverity
   };
+
+  // ---- Locked header spacing ----
+  // .topbar is position:fixed (see its CSS) so it stays pinned to the
+  // viewport on scroll, on both mobile and desktop. Since a fixed element
+  // is removed from normal flow, everything below it (the connection
+  // banner, <main>, the customer list) would otherwise render UNDER it.
+  // This keeps body's padding-top equal to the topbar's actual rendered
+  // height -- which changes as it wraps onto more lines, or as the
+  // connection/offline banner appears -- so nothing is ever hidden
+  // behind the fixed bar. #app's entire innerHTML is rebuilt on every
+  // render(), which replaces the .topbar DOM node itself, so a
+  // MutationObserver (rather than one measurement taken at startup)
+  // is what keeps this correct after every single re-render.
+  (function(){
+    var ro = (typeof ResizeObserver !== 'undefined') ? new ResizeObserver(applyHeaderPadding) : null;
+    var observedEl = null;
+
+    function applyHeaderPadding(){
+      var el = document.querySelector('.topbar');
+      document.body.style.paddingTop = el ? el.offsetHeight + 'px' : '';
+    }
+
+    function syncObserver(){
+      var el = document.querySelector('.topbar');
+      if (el !== observedEl){
+        if (ro && observedEl) ro.unobserve(observedEl);
+        observedEl = el;
+        if (ro && el) ro.observe(el);
+      }
+      applyHeaderPadding();
+    }
+
+    var appEl = document.getElementById('app');
+    if (appEl && typeof MutationObserver !== 'undefined'){
+      new MutationObserver(syncObserver).observe(appEl, { childList:true, subtree:false });
+    }
+    window.addEventListener('resize', applyHeaderPadding);
+    window.addEventListener('orientationchange', applyHeaderPadding);
+    // Fallback for browsers without ResizeObserver: a cheap periodic
+    // re-check so wrapping changes (e.g. rotating a phone) still get
+    // picked up even without the observer catching them.
+    if (!ro) setInterval(applyHeaderPadding, 500);
+    syncObserver();
+  })();
 })();
 </script>
 <script>
