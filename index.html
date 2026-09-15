@@ -3278,14 +3278,16 @@
     setTimeout(function(){ win.print(); }, 300);
   }
 
-  // ---- Auto-save for Auditor Remarks ----
-  // Instead of requiring a tap on "Save", once the user pauses typing for
-  // a short moment (and we're online) the remarks are saved automatically
-  // in the background, same as the other dropdown fields already do. The
-  // manual Save button still works too, for anyone who wants to save
-  // immediately without waiting for the pause.
-  var remarksAutoSaveTimer = null;
-  var REMARKS_AUTOSAVE_DELAY_MS = 900;
+  // ---- Auditor Remarks saving ----
+  // Auto-save was REMOVED on purpose. It used to fire ~1s after the user
+  // paused typing, and because a save re-renders the drawer, it replaced
+  // the textarea mid-sentence -- losing characters and jumbling wording
+  // whenever the auditor was still in the middle of writing.
+  //
+  // The rule now:
+  //   * typing        -> local draft only (survives reload / offline)
+  //   * Save button   -> the only thing that pushes remarks to the sheet
+  //   * "Already made a payment" -> saves immediately, by design
   // Used by the "Already made a payment" quick-remark button: detects
   // whether that standard line is already present in the saved remarks
   // (so the button can show as "marked"), and stops a second tap from
@@ -3339,6 +3341,10 @@
   // payment" button does (drops it into the textarea, then runs the
   // normal remarks save path -- online save, offline queue, and the
   // "Recent saved remarks" log all keep working exactly as before).
+  // NOTE: this no longer saves on its own. It rewrites the line inside the
+  // textarea and stores it as a draft; it reaches the sheet on the next
+  // Save tap. Same reason as the removed auto-save -- an auditor is often
+  // still typing when they flip one of these dropdowns.
   async function syncAutoFieldRemarkLine(){
     if (!state.selected || state.savingRemarks) return;
     var b = currentBranch();
@@ -3351,21 +3357,6 @@
     if (updated === current) return; // nothing to do -- avoid a redundant save
     if (ta) ta.value = updated;
     if (b && state.selected) saveDraft(b.branch, row, updated);
-    await handleSaveRemarks();
-  }
-
-  function scheduleRemarksAutoSave(){
-    if (remarksAutoSaveTimer) clearTimeout(remarksAutoSaveTimer);
-    remarksAutoSaveTimer = setTimeout(function(){
-      remarksAutoSaveTimer = null;
-      if (isOffline() || !state.selected || state.savingRemarks) return;
-      var ta = document.getElementById('remarksInput');
-      var b = currentBranch();
-      if (!ta || !b) return;
-      var savedVal = state.selected['Auditor Remarks'] || '';
-      if (ta.value === savedVal) return; // nothing changed since last save
-      handleSaveRemarks();
-    }, REMARKS_AUTOSAVE_DELAY_MS);
   }
 
   // ---- Speech-to-text for Auditor Remarks ----
@@ -4525,7 +4516,6 @@
   }
 
   async function handleSaveRemarks(){
-    if (remarksAutoSaveTimer){ clearTimeout(remarksAutoSaveTimer); remarksAutoSaveTimer = null; }
     var val = document.getElementById('remarksInput').value;
     var b = currentBranch();
     var row = state.selected._row;
@@ -4543,7 +4533,7 @@
       state.remarksMsg = 'ok';
       state.online = true;
       // Saved straight to the sheet while online -- no notification needed
-      // here since auto-save already covers that case, but it still goes
+      // here since the user tapped Save themselves, but it still goes
       // into the "Recent saved remarks" log for easy review.
       pushRemarksLogEntry(b.branch, row, custName, val, 'saved', false, prevVal);
     }catch(e){
@@ -8533,9 +8523,13 @@
     var remarksInputEl = document.getElementById('remarksInput');
     if (remarksInputEl){
       remarksInputEl.oninput = function(e){
+        // Typing only ever updates the local draft now. Nothing is pushed
+        // to the sheet until the user taps Save (or the "Already made a
+        // payment" button, which saves on purpose). This is what stops a
+        // mid-sentence save from re-rendering the textarea underneath the
+        // cursor and scrambling half-typed remarks.
         var b = currentBranch();
         if (b && state.selected) saveDraft(b.branch, state.selected._row, e.target.value);
-        scheduleRemarksAutoSave();
       };
     }
     document.querySelectorAll('[data-toggle-field]').forEach(function(btn){
