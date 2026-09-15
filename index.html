@@ -63,7 +63,10 @@
     padding:12px 22px 10px;
     display:flex; align-items:center; gap:12px; flex-wrap:wrap;
     border-bottom:3px solid var(--brass);
-    position:relative;
+    /* Locked/fixed header: stays pinned to the top of the viewport while
+       the customer list scrolls underneath it, instead of scrolling away
+       with the page. z-index keeps it above the table and cards below. */
+    position:sticky; top:0; z-index:50;
     /* Keep decorative overflow from affecting the layout, but allow the
        settings menu to escape below the bar instead of being clipped. */
     overflow:visible;
@@ -1257,9 +1260,11 @@
     tbody td.chev-cell{ display:none; }
     .topbar-row2{ flex-direction:column; align-items:stretch; }
     .topbar-row2 select#statusFilter{ width:100%; }
-    .topbar-audit-wrap{ width:100%; }
-    .topbar-audit{ width:100%; }
-    .ta-row{ width:100%; }
+    /* Date of Audit (bulk, whole-branch setter) is hidden on mobile per
+       request -- it's a whole-branch action that's easy to trigger by
+       accident on a small touch target, and auditors mostly use it from
+       desktop. Per-customer audit date, if needed, is unaffected. */
+    .topbar-audit-wrap{ display:none; }
     .setup{ margin:32px auto; padding:24px 20px; max-width:100%; }
     /* ---- Full-screen modals on mobile ---- */
     .settings-overlay{ padding:0; }
