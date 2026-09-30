@@ -6784,8 +6784,9 @@
         '.letterhead-top, .letterhead-bottom{ width:100%; display:block; }' +
         '.letterhead-cell{ padding:0; }' +
         '.report-page-body{ padding:16px 18mm 8px; }' +
-        '@page{ margin:0; size:auto; }' +
-        '@media print{ .report-page-body{ padding:16px 18mm 8px; } }' +
+        '@page{ margin:0; size:A4; }' +
+        '.report-page-body > div > div, .report-page-body > div[style*="display:flex"]{ break-inside:avoid; page-break-inside:avoid; }' +
+        '@media print{ .report-page-body{ padding:16px 18mm 8px; } img{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }' +
       '</style>' +
       '</head><body>' +
         '<table class="report-page"><thead><tr><td class="letterhead-cell">' +
@@ -6858,45 +6859,7 @@
   }
 
   function buildAuditSheetPdfBlob(f){
-    return new Promise(function(resolve, reject){
-      if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
-        reject(new Error('PDF library did not load -- check your internet connection and try again.'));
-        return;
-      }
-      var holder = document.createElement('div');
-      holder.style.position = 'fixed';
-      holder.style.left = '-10000px';
-      holder.style.top = '0';
-      holder.style.width = '794px';
-      holder.innerHTML =
-        '<img style="width:100%;display:block;" src="' + REPORT_LETTERHEAD_TOP + '" />' +
-        '<div style="padding:16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a1a;">' +
-          auditSheetDocBodyHtml(f, f.branch) +
-        '</div>' +
-        '<img style="width:100%;display:block;" src="' + REPORT_LETTERHEAD_BOTTOM + '" />';
-      document.body.appendChild(holder);
-      var cleanup = function(){ if (holder.parentNode) holder.parentNode.removeChild(holder); };
-      html2canvas(holder, { scale: 2, useCORS: true }).then(function(canvas){
-        cleanup();
-        var jsPDF = window.jspdf.jsPDF;
-        var pdf = new jsPDF('p', 'mm', 'a4');
-        var pageWidth = 210, pageHeight = 297;
-        var imgWidth = pageWidth;
-        var imgHeight = canvas.height * imgWidth / canvas.width;
-        var heightLeft = imgHeight;
-        var position = 0;
-        var imgData = canvas.toDataURL('image/jpeg', 0.92);
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-        while (heightLeft > 0){
-          position = heightLeft - imgHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
-        }
-        resolve(pdf.output('blob'));
-      }).catch(function(err){ cleanup(); reject(err); });
-    });
+    return buildPaginatedPdfBlob(auditSheetDocBodyHtml(f, f.branch));
   }
 
   function shareAuditSheetAsPdf(){
@@ -7211,8 +7174,9 @@
         '.letterhead-top, .letterhead-bottom{ width:100%; display:block; }' +
         '.letterhead-cell{ padding:0; }' +
         '.report-page-body{ padding:16px 18mm 8px; }' +
-        '@page{ margin:0; size:auto; }' +
-        '@media print{ .report-page-body{ padding:16px 18mm 8px; } }' +
+        '@page{ margin:0; size:A4; }' +
+        '.report-page-body > div > div, .report-page-body > div[style*="display:flex"]{ break-inside:avoid; page-break-inside:avoid; }' +
+        '@media print{ .report-page-body{ padding:16px 18mm 8px; } img{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }' +
       '</style>' +
       '</head><body>' +
         '<table class="report-page"><thead><tr><td class="letterhead-cell">' +
@@ -7337,6 +7301,124 @@
     pushNotification('offline', 'Direct sharing isn\u2019t available on this browser', filename + ' was downloaded instead -- attach it manually in Messenger (or wherever you want to send it).', { status: 'resolved' });
   }
 
+
+  // ------------------------------------------------------------------
+  // Shared, print-safe PDF builder (used by Draft Report AND Audit Sheet)
+  //
+  // Old behaviour: the whole document was screenshotted as ONE tall image
+  // and sliced every 297mm, so text lines were cut in half at page breaks,
+  // the letterhead only appeared on page 1, and there were no margins for
+  // the printer to grab -- which is why printed copies looked wrong.
+  //
+  // New behaviour:
+  //   * body is rendered once at a sharp 3x scale, then split ONLY between
+  //     lines/blocks (never through the middle of a line of text)
+  //   * a section title is never left alone at the bottom of a page
+  //   * the letterhead header + footer are placed on EVERY page as real
+  //     vector-placed images (crisp, identical on each page)
+  //   * proper A4 margins so nothing is clipped by the printer
+  //   * "Page X of Y" so a missing page is obvious on paper
+  // ------------------------------------------------------------------
+  function buildPaginatedPdfBlob(bodyHtml){
+    return new Promise(function(resolve, reject){
+      if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+        reject(new Error('PDF library did not load -- check your internet connection and try again.'));
+        return;
+      }
+      var PAGE_W = 210, PAGE_H = 297;          // A4, mm
+      var SIDE = 18;                           // left/right margin, mm
+      var TOP_H = PAGE_W * 0.1348;             // letterhead top height, mm  (1588x214 px image)
+      var BOT_H = PAGE_W * 0.0743;             // letterhead bottom height, mm (1588x118 px image)
+      var GAP_TOP = 5, GAP_BOT = 9;            // breathing room around the body, mm
+      var BODY_W = PAGE_W - SIDE * 2;          // 174 mm
+      var PX_PER_MM = 794 / PAGE_W;            // css px per mm
+      var BODY_PX_W = Math.round(BODY_W * PX_PER_MM);
+      var PAGE_BODY_MM = PAGE_H - TOP_H - BOT_H - GAP_TOP - GAP_BOT;
+      var PAGE_BODY_PX = PAGE_BODY_MM * PX_PER_MM;
+      var SCALE = 3;
+
+      var holder = document.createElement('div');
+      holder.style.cssText = 'position:fixed;left:-10000px;top:0;background:#fff;width:' + BODY_PX_W + 'px;' +
+        'font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.35;color:#1a1a1a;';
+      holder.innerHTML = bodyHtml;
+      document.body.appendChild(holder);
+      var cleanup = function(){ if (holder.parentNode) holder.parentNode.removeChild(holder); };
+
+      // ---- 1. find the "unbreakable" blocks and where each one sits ----
+      var hTop = holder.getBoundingClientRect().top;
+      var blocks = [];   // { top, bottom, keepNext }
+      function addBlock(el, keepNext){
+        var r = el.getBoundingClientRect();
+        if (r.height < 1) return;
+        var cs = window.getComputedStyle(el);
+        var mt = parseFloat(cs.marginTop) || 0, mb = parseFloat(cs.marginBottom) || 0;
+        blocks.push({ top: r.top - hTop - mt, bottom: r.bottom - hTop + mb, keepNext: !!keepNext });
+      }
+      Array.prototype.forEach.call(holder.children, function(top){
+        var kids = Array.prototype.filter.call(top.children, function(c){ return c.tagName === 'DIV'; });
+        var isFlex = window.getComputedStyle(top).display === 'flex';   // signature row stays together
+        if (isFlex || kids.length === 0){ addBlock(top, false); return; }
+        // section wrapper: first child is the title -> keep it with the first item
+        kids.forEach(function(k, i){ addBlock(k, i === 0 && kids.length > 1); });
+      });
+      var totalPx = Math.ceil(holder.scrollHeight);
+      blocks.sort(function(a, b){ return a.top - b.top; });
+
+      // ---- 2. greedy page packing on block boundaries ----
+      var pages = [];     // [startPx, endPx]
+      var start = 0, i = 0;
+      while (start < totalPx - 1){
+        var limit = start + PAGE_BODY_PX, end = start, lastFit = -1;
+        for (var j = i; j < blocks.length; j++){
+          if (blocks[j].bottom <= limit + 0.5){ lastFit = j; end = blocks[j].bottom; }
+          else break;
+        }
+        // never end a page on a lone section title
+        if (lastFit >= 0 && blocks[lastFit].keepNext && lastFit > i){ lastFit--; end = blocks[lastFit].bottom; }
+        if (lastFit < i){
+          // a single block taller than a page (or nothing fits): hard cut as a last resort
+          end = Math.min(limit, totalPx);
+          while (i < blocks.length && blocks[i].bottom <= end) i++;
+        } else {
+          i = lastFit + 1;
+        }
+        if (i >= blocks.length) end = totalPx;      // last page takes everything remaining
+        if (end <= start) end = Math.min(start + PAGE_BODY_PX, totalPx);
+        pages.push([start, end]);
+        start = end;
+      }
+      if (!pages.length) pages.push([0, Math.max(totalPx, 1)]);
+
+      // ---- 3. render once, then cut per page ----
+      html2canvas(holder, { scale: SCALE, useCORS: true, backgroundColor: '#ffffff', windowWidth: BODY_PX_W }).then(function(canvas){
+        cleanup();
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+        var ratio = canvas.width / BODY_PX_W;       // canvas px per css px
+        pages.forEach(function(pg, n){
+          if (n > 0) pdf.addPage();
+          // letterhead on EVERY page
+          pdf.addImage(REPORT_LETTERHEAD_TOP, 'JPEG', 0, 0, PAGE_W, TOP_H, 'lhTop', 'FAST');
+          pdf.addImage(REPORT_LETTERHEAD_BOTTOM, 'JPEG', 0, PAGE_H - BOT_H, PAGE_W, BOT_H, 'lhBot', 'FAST');
+          // body slice
+          var sy = Math.round(pg[0] * ratio);
+          var sh = Math.max(1, Math.min(canvas.height - sy, Math.round((pg[1] - pg[0]) * ratio)));
+          var slice = document.createElement('canvas');
+          slice.width = canvas.width; slice.height = sh;
+          var ctx = slice.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, slice.width, slice.height);
+          ctx.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
+          var hMm = sh / ratio / PX_PER_MM;
+          pdf.addImage(slice.toDataURL('image/png'), 'PNG', SIDE, TOP_H + GAP_TOP, BODY_W, hMm, undefined, 'FAST');
+          // page number
+          pdf.setFontSize(8); pdf.setTextColor(120);
+          pdf.text('Page ' + (n + 1) + ' of ' + pages.length, PAGE_W - SIDE, PAGE_H - BOT_H - 2.5, { align: 'right' });
+        });
+        resolve(pdf.output('blob'));
+      }).catch(function(err){ cleanup(); reject(err); });
+    });
+  }
+
   function downloadBlob(blob, filename){
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -7352,51 +7434,9 @@
   // attached directly to a share-sheet action -- renders the same
   // report body used everywhere else onto an offscreen canvas via
   // html2canvas, then lays that image into a jsPDF document, splitting
-  // it across as many pages as the content needs. The letterhead banner
-  // only appears once at the top and bottom of this file (it isn't
-  // repeated per page the way the true print/"Download PDF" output is)
-  // -- this is meant as a quick, shareable copy, not the authoritative
-  // printed record.
+  // it across as many pages as the content needs. The letterhead now repeats on every page.
   function buildReportPdfBlob(f){
-    return new Promise(function(resolve, reject){
-      if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
-        reject(new Error('PDF library did not load -- check your internet connection and try again.'));
-        return;
-      }
-      var holder = document.createElement('div');
-      holder.style.position = 'fixed';
-      holder.style.left = '-10000px';
-      holder.style.top = '0';
-      holder.style.width = '794px'; // ~A4 at 96dpi
-      holder.innerHTML =
-        '<img style="width:100%;display:block;" src="' + REPORT_LETTERHEAD_TOP + '" />' +
-        '<div style="padding:16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a1a;">' +
-          reportDocBodyHtml(f, f.branch) +
-        '</div>' +
-        '<img style="width:100%;display:block;" src="' + REPORT_LETTERHEAD_BOTTOM + '" />';
-      document.body.appendChild(holder);
-      var cleanup = function(){ if (holder.parentNode) holder.parentNode.removeChild(holder); };
-      html2canvas(holder, { scale: 2, useCORS: true }).then(function(canvas){
-        cleanup();
-        var jsPDF = window.jspdf.jsPDF;
-        var pdf = new jsPDF('p', 'mm', 'a4');
-        var pageWidth = 210, pageHeight = 297;
-        var imgWidth = pageWidth;
-        var imgHeight = canvas.height * imgWidth / canvas.width;
-        var heightLeft = imgHeight;
-        var position = 0;
-        var imgData = canvas.toDataURL('image/jpeg', 0.92);
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-        while (heightLeft > 0){
-          position = heightLeft - imgHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
-        }
-        resolve(pdf.output('blob'));
-      }).catch(function(err){ cleanup(); reject(err); });
-    });
+    return buildPaginatedPdfBlob(reportDocBodyHtml(f, f.branch));
   }
 
   function shareReportAsPdf(){
