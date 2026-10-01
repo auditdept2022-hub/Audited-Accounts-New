@@ -240,6 +240,28 @@
     background:transparent; color:#8FA3B8; cursor:pointer; transition:background .15s ease,color .15s ease;
   }
   .branch-item-delete:hover{ background:rgba(214,69,69,0.2); color:#FF6B6B; }
+  .branch-item-hide{
+    flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    width:26px; height:26px; margin-right:2px; border-radius:6px; border:none;
+    background:transparent; color:#8FA3B8; cursor:pointer; transition:background .15s ease,color .15s ease;
+  }
+  .branch-item-hide:hover{ background:rgba(23,179,163,0.2); color:#fff; }
+  .branch-item-hide[disabled]{ opacity:.4; cursor:not-allowed; }
+  .branch-hidden-section{ border-top:1px solid rgba(23,179,163,0.22); padding:4px 6px; }
+  .branch-hidden-toggle{
+    display:flex; align-items:center; justify-content:space-between; width:100%;
+    background:transparent; border:none; color:#8FA3B8; font-family:'Manrope',sans-serif;
+    font-size:11.5px; font-weight:600; padding:7px 6px; cursor:pointer; border-radius:6px;
+  }
+  .branch-hidden-toggle:hover{ color:#fff; }
+  .branch-hidden-item{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 6px; font-size:12.5px; color:#8FA3B8; }
+  .branch-hidden-item span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .branch-unhide-btn{
+    flex-shrink:0; background:rgba(23,179,163,0.14); border:none; color:var(--brass); font-family:'Manrope',sans-serif;
+    font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px; cursor:pointer;
+  }
+  .branch-unhide-btn:hover{ background:rgba(23,179,163,0.3); color:#fff; }
+  .branch-unhide-btn[disabled]{ opacity:.5; cursor:wait; }
   .branch-dropdown-footer{ border-top:1px solid rgba(23,179,163,0.22); padding:6px; }
   .branch-dropdown-addbtn{
     display:flex; align-items:center; justify-content:center; gap:6px; width:100%;
@@ -1660,6 +1682,13 @@
     deleteBranchTarget: '',
     deleteBranchSaving: false,
     deleteBranchMsg: '',
+    // ---- Hide / unhide branch tabs ----
+    // hiddenBranches = names of tabs currently hidden on the Google Sheet
+    // (the backend still reports them, flagged hidden:true, so they can be
+    // listed under "Hidden tabs" and brought back with one tap).
+    hiddenBranches: [],
+    hiddenSectionOpen: false,
+    hideBranchBusy: '',
     // ---- Draft Report modal ----
     // A fixed-format audit checklist (branch visit report), separate from
     // the per-customer dashboard rows. The checklist items/sections/layout
@@ -4100,11 +4129,17 @@
       var res = await fetchWithTimeout(fetchUrl, { method:'GET', cache:'no-store' }, FETCH_TIMEOUT_MS);
       var data = await res.json();
       if (!data.success) throw new Error(data.error || 'Could not load data.');
-      var newBranches = data.branches || [];
+      var allBranches = data.branches || [];
+      // Tabs hidden on the Google Sheet come back flagged hidden:true —
+      // keep them out of the main branch list, but remember their names.
+      var newBranches = allBranches.filter(function(b){ return !b.hidden; });
+      var newHidden = allBranches.filter(function(b){ return b.hidden; }).map(function(b){ return b.branch; });
       // Skip the (expensive, flicker-causing) full re-render entirely when
       // the freshly-fetched data is identical to what's already on screen —
       // which, for a silent background refresh, is true most of the time.
-      var changed = JSON.stringify(newBranches) !== JSON.stringify(state.branches);
+      var changed = JSON.stringify(newBranches) !== JSON.stringify(state.branches) ||
+                    JSON.stringify(newHidden) !== JSON.stringify(state.hiddenBranches);
+      state.hiddenBranches = newHidden;
       state.branches = newBranches;
       if (state.branches.length && !state.branches.some(function(b){ return b.branch === state.activeBranch; })){
         state.activeBranch = state.branches[0].branch;
@@ -5151,12 +5186,16 @@
                         '<span class="branch-item-name">' + esc(br.branch) + '</span>' +
                         '<span class="branch-item-count">' + br.rows.length + '</span>' +
                       '</button>' +
+                      '<button type="button" class="branch-item-hide" data-branch="' + esc(br.branch) + '" title="' + (state.branches.length <= 1 ? 'Can\'t hide the only visible tab' : 'Hide ' + esc(br.branch) + ' on the Google Sheet') + '" aria-label="Hide ' + esc(br.branch) + '"' + (state.branches.length <= 1 || state.hideBranchBusy ? ' disabled' : '') + '>' +
+                        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' +
+                      '</button>' +
                       '<button type="button" class="branch-item-delete" data-branch="' + esc(br.branch) + '" title="Delete ' + esc(br.branch) + '" aria-label="Delete ' + esc(br.branch) + '">' +
                         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>' +
                       '</button>' +
                     '</div>';
                   }).join('') +
                 '</div>' +
+                hiddenBranchesSectionHtml() +
                 '<div class="branch-dropdown-footer">' +
                   '<button type="button" class="branch-dropdown-addbtn" id="branchDropdownAddBtn">➕ Add branch</button>' +
                 '</div>' +
@@ -6041,6 +6080,65 @@
         '</div>' +
       '</div>'
     );
+  }
+
+  // ---- Hide / unhide a branch tab on the Google Sheet ----
+  // Hiding is reversible (unlike Delete): the tab, its data and formatting
+  // all stay on the sheet, it's just hidden from the tab bar AND from this
+  // dashboard until it's unhidden again from the "Hidden tabs" list.
+  function hiddenBranchesSectionHtml(){
+    var list = state.hiddenBranches || [];
+    if (!list.length) return '';
+    return '<div class="branch-hidden-section">' +
+      '<button type="button" class="branch-hidden-toggle" id="hiddenBranchesToggle">' +
+        '<span>Hidden tabs (' + list.length + ')</span>' +
+        '<span>' + (state.hiddenSectionOpen ? '\u25B2' : '\u25BC') + '</span>' +
+      '</button>' +
+      (state.hiddenSectionOpen ? list.map(function(name){
+        return '<div class="branch-hidden-item"><span>' + esc(name) + '</span>' +
+          '<button type="button" class="branch-unhide-btn" data-branch="' + esc(name) + '"' + (state.hideBranchBusy ? ' disabled' : '') + '>' +
+          (state.hideBranchBusy === name ? 'Unhiding...' : 'Unhide') + '</button></div>';
+      }).join('') : '') +
+    '</div>';
+  }
+
+  async function doSetBranchHidden(branchName, hide){
+    if (!branchName || state.hideBranchBusy) return;
+    if (hide && state.branches.length <= 1){
+      pushNotification('error', 'Can\u2019t hide ' + branchName, 'It\u2019s the only visible tab \u2014 unhide or add another branch first.', { status: 'failed' });
+      render();
+      return;
+    }
+    state.hideBranchBusy = branchName; render();
+    try{
+      var res = await fetchWithTimeout(state.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: hide ? 'hideBranch' : 'unhideBranch', branchName: branchName })
+      }, 30000);
+      var data = await res.json();
+      if (!data.success) throw new Error(data.error || ('Could not ' + (hide ? 'hide' : 'unhide') + ' the tab.'));
+      pushNotification('success', 'Tab ' + (hide ? 'hidden' : 'unhidden') + ' \u2014 ' + branchName,
+        hide ? 'The "' + branchName + '" tab is now hidden on your Google Sheet and on this dashboard. You can bring it back from Hidden tabs.'
+             : 'The "' + branchName + '" tab is visible again on your Google Sheet and on this dashboard.',
+        { status: 'success' });
+      if (!hide){ state.activeBranch = branchName; }
+      state.hideBranchBusy = '';
+      await fetchData();
+      if (state.branches.length && !state.branches.some(function(b){ return b.branch === state.activeBranch; })){
+        state.activeBranch = state.branches[0].branch;
+      }
+      render();
+      return;
+    }catch(e){
+      pushNotification('error', 'Could not ' + (hide ? 'hide' : 'unhide') + ' tab \u2014 ' + branchName, e.message, {
+        status: 'failed',
+        cause: 'The dashboard reached the Google Sheet backend but the tab could not be ' + (hide ? 'hidden' : 'unhidden') + '. If you just updated this dashboard, make sure the Apps Script was updated with the hide/unhide actions and redeployed (Deploy > Manage deployments > Edit > New version).',
+        solution: 'Tap Sync now to refresh the tab list, then try again.'
+      });
+    }
+    state.hideBranchBusy = '';
+    render();
   }
 
   async function doDeleteBranch(){
@@ -7623,6 +7721,26 @@
         state.statusFilter = '';
         state.branchDropdownOpen = false;
         render();
+      };
+    });
+    document.querySelectorAll('.branch-item-hide').forEach(function(btn){
+      btn.onclick = function(e){
+        e.stopPropagation();
+        doSetBranchHidden(btn.getAttribute('data-branch'), true);
+      };
+    });
+    var hiddenBranchesToggle = document.getElementById('hiddenBranchesToggle');
+    if (hiddenBranchesToggle){
+      hiddenBranchesToggle.onclick = function(e){
+        e.stopPropagation();
+        state.hiddenSectionOpen = !state.hiddenSectionOpen;
+        render();
+      };
+    }
+    document.querySelectorAll('.branch-unhide-btn').forEach(function(btn){
+      btn.onclick = function(e){
+        e.stopPropagation();
+        doSetBranchHidden(btn.getAttribute('data-branch'), false);
       };
     });
     document.querySelectorAll('.branch-item-delete').forEach(function(btn){
