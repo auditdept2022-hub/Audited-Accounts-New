@@ -7035,13 +7035,9 @@
     if (!state.reportOpen) return '';
     var f = state.reportForm;
 
-    var branchOptions = '<option value="">Choose a branch...</option>' + state.branches.map(function(b){
-      return '<option value="' + esc(b.branch) + '"' + (b.branch === state.reportBranch ? ' selected' : '') + '>' + esc(b.branch) + '</option>';
-    }).join('');
-
     var body;
     if (!f){
-      body = '<div class="sm-hint">Pick a branch above to start (or continue) its Draft Report.</div>';
+      body = '<div class="sm-hint">Type the branch name above to start (or continue) its Draft Report.</div>';
     } else {
       var sectionsHtml = REPORT_SECTIONS.map(function(sec, si){
         var lines = f.checklist[sec.title] || [];
@@ -7165,7 +7161,7 @@
           '</div>' +
           '<div class="sm-body">' +
             '<label>Branch</label>' +
-            '<select id="reportBranchSelect">' + branchOptions + '</select>' +
+            '<input type="text" id="reportBranchInput" value="' + esc(state.reportBranch || '') + '" placeholder="Type the branch name" autocomplete="off" autocapitalize="words" />' +
             '<div style="height:14px;"></div>' +
             body +
             '<div class="sm-actions">' +
@@ -8213,8 +8209,22 @@
     var closeReportBtnX = document.getElementById('closeReportBtnX');
     if (closeReportBtnX) closeReportBtnX.onclick = function(){ closeOverlay('reportOpen'); };
 
-    var reportBranchSelect = document.getElementById('reportBranchSelect');
-    if (reportBranchSelect) reportBranchSelect.onchange = function(e){ switchReportBranch(e.target.value); };
+    // Branch is a free-text field now (no dropdown). Keep what's typed in
+    // state on every keystroke (so a background re-render never wipes it),
+    // but only load/switch the report once the auditor finishes typing
+    // (Enter, or tapping away) -- reports are saved per branch name, so
+    // switching on every letter would create a stray report per keystroke.
+    var reportBranchInput = document.getElementById('reportBranchInput');
+    if (reportBranchInput){
+      reportBranchInput.oninput = function(e){ state.reportBranch = e.target.value; };
+      reportBranchInput.onkeydown = function(e){ if (e.key === 'Enter'){ e.preventDefault(); e.target.blur(); } };
+      reportBranchInput.onchange = function(e){
+        var name = String(e.target.value || '').replace(/\s+/g, ' ').trim();
+        var current = (state.reportForm && state.reportForm.branch) || '';
+        if (name === current){ state.reportBranch = name; render(); return; }
+        switchReportBranch(name);
+      };
+    }
 
     var reportDateInput = document.getElementById('reportDateInput');
     if (reportDateInput) reportDateInput.onchange = function(e){
