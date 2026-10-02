@@ -7032,8 +7032,6 @@
               '<div class="section-label" style="margin-top:14px;">Share</div>' +
               '<div class="sm-actions">' +
                 '<button class="btn ghost" id="auditSheetShareMessengerBtn"' + (state.auditSheetShareBusy ? ' disabled' : '') + '>\uD83D\uDCAC ' + (state.auditSheetShareBusy === 'messenger' ? 'Preparing...' : 'Share via Messenger') + '</button>' +
-                '<button class="btn ghost" id="auditSheetSharePdfBtn"' + (state.auditSheetShareBusy ? ' disabled' : '') + '>\uD83D\uDDB6 ' + (state.auditSheetShareBusy === 'pdf' ? 'Preparing...' : 'Share as PDF') + '</button>' +
-                '<button class="btn ghost" id="auditSheetShareWordBtn"' + (state.auditSheetShareBusy ? ' disabled' : '') + '>\u2b73 Share as Docs</button>' +
               '</div>'
             ) : '') +
           '</div>' +
@@ -7384,8 +7382,6 @@
               '<div class="section-label" style="margin-top:14px;">Share</div>' +
               '<div class="sm-actions">' +
                 '<button class="btn ghost" id="reportShareMessengerBtn"' + (state.reportShareBusy ? ' disabled' : '') + '>\uD83D\uDCAC ' + (state.reportShareBusy === 'messenger' ? 'Preparing...' : 'Share via Messenger') + '</button>' +
-                '<button class="btn ghost" id="reportSharePdfBtn"' + (state.reportShareBusy ? ' disabled' : '') + '>\uD83D\uDDB6 ' + (state.reportShareBusy === 'pdf' ? 'Preparing...' : 'Share as PDF') + '</button>' +
-                '<button class="btn ghost" id="reportShareWordBtn"' + (state.reportShareBusy ? ' disabled' : '') + '>\u2b73 Share as Docs</button>' +
               '</div>'
             ) : '') +
           '</div>' +
@@ -8629,10 +8625,6 @@
     if (reportPreviewBtn) reportPreviewBtn.onclick = openReportPreview;
     var reportShareMessengerBtn = document.getElementById('reportShareMessengerBtn');
     if (reportShareMessengerBtn) reportShareMessengerBtn.onclick = shareReportViaMessenger;
-    var reportSharePdfBtn = document.getElementById('reportSharePdfBtn');
-    if (reportSharePdfBtn) reportSharePdfBtn.onclick = shareReportAsPdf;
-    var reportShareWordBtn = document.getElementById('reportShareWordBtn');
-    if (reportShareWordBtn) reportShareWordBtn.onclick = shareReportAsWord;
 
     var reportPreviewOverlay = document.getElementById('reportPreviewOverlay');
     if (reportPreviewOverlay){
@@ -8735,10 +8727,6 @@
     if (auditSheetPreviewBtn) auditSheetPreviewBtn.onclick = openAuditSheetPreview;
     var auditSheetShareMessengerBtn = document.getElementById('auditSheetShareMessengerBtn');
     if (auditSheetShareMessengerBtn) auditSheetShareMessengerBtn.onclick = shareAuditSheetViaMessenger;
-    var auditSheetSharePdfBtn = document.getElementById('auditSheetSharePdfBtn');
-    if (auditSheetSharePdfBtn) auditSheetSharePdfBtn.onclick = shareAuditSheetAsPdf;
-    var auditSheetShareWordBtn = document.getElementById('auditSheetShareWordBtn');
-    if (auditSheetShareWordBtn) auditSheetShareWordBtn.onclick = shareAuditSheetAsWord;
 
     var auditSheetPreviewOverlay = document.getElementById('auditSheetPreviewOverlay');
     if (auditSheetPreviewOverlay){
