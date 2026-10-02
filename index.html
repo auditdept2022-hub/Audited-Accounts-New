@@ -7556,19 +7556,65 @@
   function shareOrDownloadFile(blob, filename, mimeType, title){
     var file;
     try{ file = new File([blob], filename, { type: mimeType }); }catch(e){ file = null; }
-    if (file && typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })){
-      navigator.share({ files: [file], title: title || filename }).catch(function(err){
-        // AbortError just means the auditor closed the share sheet --
-        // not a real failure, so don't fall back to a download in that
-        // case (that would feel like the button "did something extra").
-        if (err && err.name === 'AbortError') return;
-        downloadBlob(blob, filename);
-        pushNotification('error', 'Could not open the share sheet', 'The file was downloaded instead -- attach it manually from your downloads.', { status: 'failed' });
-      });
+    if (!file || typeof navigator === 'undefined' || !navigator.share){
+      shareFallbackDownload(blob, filename);
       return;
     }
+    // Some browsers say canShare() = false for .docx even though the
+    // share sheet can take it, so we try the share anyway and only fall
+    // back to a download if the browser really refuses.
+    var p;
+    try{ p = navigator.share({ files: [file], title: title || filename }); }
+    catch(err){ p = Promise.reject(err); }
+    Promise.resolve(p).catch(function(err){
+      // AbortError = the auditor closed the share sheet -- not a failure.
+      if (err && err.name === 'AbortError') return;
+      // NotAllowedError = the browser wants a fresh tap (the file took a
+      // moment to build). Show a one-tap "Send now" so it still goes
+      // straight to the share sheet instead of downloading.
+      if (err && err.name === 'NotAllowedError'){
+        showShareReadyDialog(file, blob, filename, title);
+        return;
+      }
+      shareFallbackDownload(blob, filename);
+    });
+  }
+
+  function shareFallbackDownload(blob, filename){
     downloadBlob(blob, filename);
     pushNotification('offline', 'Direct sharing isn\u2019t available on this browser', filename + ' was downloaded instead -- attach it manually in Messenger (or wherever you want to send it).', { status: 'resolved' });
+  }
+
+  function showShareReadyDialog(file, blob, filename, title){
+    var old = document.getElementById('shareReadyOverlay');
+    if (old) old.remove();
+    var ov = document.createElement('div');
+    ov.id = 'shareReadyOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML =
+      '<div role="dialog" aria-modal="true" style="background:#fff;color:#0F172A;border-radius:14px;max-width:340px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.35);font-family:inherit;">' +
+        '<div style="font-size:16px;font-weight:700;margin-bottom:4px;">\u2705 Handa na ang file</div>' +
+        '<div style="font-size:13px;color:#4B5768;margin-bottom:14px;word-break:break-word;">' + String(filename).replace(/[<>&]/g,'') + '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;">' +
+          '<button type="button" class="btn gold" data-act="send" style="width:100%;">\uD83D\uDCAC Send now</button>' +
+          '<button type="button" class="btn ghost" data-act="close" style="width:100%;">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    ov.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('button[data-act]');
+      if (e.target === ov || (b && b.getAttribute('data-act') === 'close')){ ov.remove(); return; }
+      if (!b) return;
+      // navigator.share is called directly inside this tap.
+      var p;
+      try{ p = navigator.share({ files: [file], title: title || filename }); }
+      catch(err){ p = Promise.reject(err); }
+      ov.remove();
+      Promise.resolve(p).catch(function(err){
+        if (err && err.name === 'AbortError') return;
+        shareFallbackDownload(blob, filename);
+      });
+    });
+    document.body.appendChild(ov);
   }
 
 
