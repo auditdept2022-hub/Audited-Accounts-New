@@ -7172,14 +7172,8 @@
 
   function shareAuditSheetViaMessenger(){
     if (!state.auditSheetForm) return;
-    var f = state.auditSheetForm;
-    state.auditSheetShareBusy = 'messenger'; render();
-    buildAuditSheetPdfBlob(f).then(function(blob){
-      state.auditSheetShareBusy = ''; render();
-      shareOrDownloadFile(blob, 'Audit Sheet - ' + f.branch + '.pdf', 'application/pdf', 'Audit Sheet - ' + f.branch);
-    }).catch(function(err){
-      state.auditSheetShareBusy = ''; render();
-      pushNotification('error', 'Could not create the PDF to share', err.message || 'Something went wrong building the PDF.', { status: 'failed' });
+    chooseShareFormat(function(fmt){
+      if (fmt === 'word') shareAuditSheetAsWord(); else shareAuditSheetAsPdf();
     });
   }
 
@@ -7527,6 +7521,38 @@
   // there themselves. Where that API or file-sharing isn't supported
   // (desktop browsers, mostly), this falls back to just downloading the
   // file and telling the auditor to attach it manually.
+  // Small pop-up asking which file type to send (PDF or Docs) before
+  // the share sheet opens -- used by both "Share via Messenger" buttons.
+  function chooseShareFormat(onPick){
+    var old = document.getElementById('shareFormatOverlay');
+    if (old) old.remove();
+    var ov = document.createElement('div');
+    ov.id = 'shareFormatOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML =
+      '<div role="dialog" aria-modal="true" style="background:#fff;color:#0F172A;border-radius:14px;max-width:340px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.35);font-family:inherit;">' +
+        '<div style="font-size:16px;font-weight:700;margin-bottom:4px;">\uD83D\uDCAC Share via Messenger</div>' +
+        '<div style="font-size:13px;color:#4B5768;margin-bottom:14px;">Anong format ang ipapadala mo?</div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;">' +
+          '<button type="button" class="btn gold" data-fmt="pdf" style="width:100%;">\uD83D\uDDB6 PDF</button>' +
+          '<button type="button" class="btn ghost" data-fmt="word" style="width:100%;">\u2b73 Docs (Word)</button>' +
+          '<button type="button" class="btn ghost" data-fmt="" style="width:100%;">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    function close(){ ov.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e){ if (e.key === 'Escape') close(); }
+    ov.addEventListener('click', function(e){
+      if (e.target === ov){ close(); return; }
+      var b = e.target.closest && e.target.closest('button[data-fmt]');
+      if (!b) return;
+      var fmt = b.getAttribute('data-fmt');
+      close();
+      if (fmt) onPick(fmt);
+    });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
+  }
+
   function shareOrDownloadFile(blob, filename, mimeType, title){
     var file;
     try{ file = new File([blob], filename, { type: mimeType }); }catch(e){ file = null; }
@@ -7973,14 +7999,8 @@
   // the same result, just one extra tap.
   function shareReportViaMessenger(){
     if (!state.reportForm) return;
-    var f = state.reportForm;
-    state.reportShareBusy = 'messenger'; render();
-    buildReportPdfBlob(f).then(function(blob){
-      state.reportShareBusy = ''; render();
-      shareOrDownloadFile(blob, 'Draft Report - ' + f.branch + '.pdf', 'application/pdf', 'Draft Report - ' + f.branch);
-    }).catch(function(err){
-      state.reportShareBusy = ''; render();
-      pushNotification('error', 'Could not create the PDF to share', err.message || 'Something went wrong building the PDF.', { status: 'failed' });
+    chooseShareFormat(function(fmt){
+      if (fmt === 'word') shareReportAsWord(); else shareReportAsPdf();
     });
   }
 
