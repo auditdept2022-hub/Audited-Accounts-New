@@ -1577,6 +1577,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 <div id="app"></div>
 
 <!-- ===================== AI AUDITOR ASSISTANT ======================
@@ -6917,43 +6918,14 @@
     });
   }
 
-  function buildAuditSheetWordHtml(f){
-    return (
-      '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
-      '<head><meta charset="utf-8" />' +
-      '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->' +
-      '<style>' +
-        '@page Section1{ size:8.5in 11.0in; margin:1.05in 0.6in 1.05in 0.6in; mso-header-margin:.4in; mso-footer-margin:.35in; mso-header:h1; mso-footer:f1; }' +
-        'div.Section1{ page:Section1; }' +
-        'body{ font-family:Calibri,Arial,sans-serif; font-size:12pt; margin:0; }' +
-        '.letterhead-top, .letterhead-bottom{ width:100%; }' +
-        'p.MsoHeader, p.MsoFooter{ margin:0; }' +
-      '</style>' +
-      '</head><body>' +
-        '<div style="mso-element:header;" id="h1">' +
-          '<p class="MsoHeader"><img class="letterhead-top" src="' + REPORT_LETTERHEAD_TOP + '" /></p>' +
-        '</div>' +
-        '<div style="mso-element:footer;" id="f1">' +
-          '<p class="MsoFooter"><img class="letterhead-bottom" src="' + REPORT_LETTERHEAD_BOTTOM + '" /></p>' +
-        '</div>' +
-        '<div class="Section1">' + auditSheetDocBodyHtml(f, f.branch) + '</div>' +
-      '</body></html>'
-    );
-  }
-
   function downloadAuditSheetAsWord(){
     if (!state.auditSheetForm) return;
     var f = state.auditSheetForm;
-    var html = buildAuditSheetWordHtml(f);
-    var blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'Audit Sheet - ' + f.branch + '.doc';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    buildAuditSheetWordBlob(f).then(function(blob){
+      downloadBlob(blob, 'Audit Sheet - ' + f.branch + '.docx');
+    }).catch(function(err){
+      pushNotification('error', 'Could not create the Word file', err.message || 'Something went wrong building the Word file.', { status: 'failed' });
+    });
   }
 
   function buildAuditSheetPdfBlob(f){
@@ -6976,9 +6948,11 @@
   function shareAuditSheetAsWord(){
     if (!state.auditSheetForm) return;
     var f = state.auditSheetForm;
-    var html = buildAuditSheetWordHtml(f);
-    var blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-    shareOrDownloadFile(blob, 'Audit Sheet - ' + f.branch + '.doc', 'application/msword', 'Audit Sheet - ' + f.branch);
+    buildAuditSheetWordBlob(f).then(function(blob){
+      shareOrDownloadFile(blob, 'Audit Sheet - ' + f.branch + '.docx', DOCX_MIME, 'Audit Sheet - ' + f.branch);
+    }).catch(function(err){
+      pushNotification('error', 'Could not create the Word file', err.message || 'Something went wrong building the Word file.', { status: 'failed' });
+    });
   }
 
   function shareAuditSheetViaMessenger(){
@@ -7294,8 +7268,8 @@
   // a new tab and triggers the browser's print dialog, where the auditor
   // picks "Save as PDF". This is deliberately a separate code path from
   // "Download Word" below: PDF always uses buildReportPrintHtml (image
-  // letterhead + browser print), Word always uses buildReportWordHtml
-  // (real mso header/footer) -- the two outputs are no longer produced
+  // letterhead + browser print), Word always uses buildReportWordBlob
+  // (real .docx header/footer) -- the two outputs are no longer produced
   // by the same function with minor tweaks, so a fix to one can't
   // accidentally break the other.
   // "Download PDF" -- builds a REAL PDF file (via buildReportPdfBlob,
@@ -7320,56 +7294,17 @@
     });
   }
 
-  // Builds the .doc export with a REAL, repeating Word header/footer,
-  // using Word's own mso-element:header / mso-element:footer markup
-  // (referenced from an @page section rule via mso-header / mso-footer).
-  // This is different from the PDF path on purpose: a plain <img> placed
-  // in the body only ever appears once, but content registered as an
-  // actual header/footer through this markup repeats on every page when
-  // opened in Microsoft Word, matching the printed template exactly.
-  // (LibreOffice/Google Docs render the first page correctly too; they
-  // just don't replay the mso repeat-on-every-page behavior, which is a
-  // limitation of those apps reading a Word-flavoured file, not of this
-  // markup.)
-  function buildReportWordHtml(f){
-    return (
-      '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
-      '<head><meta charset="utf-8" />' +
-      '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->' +
-      '<style>' +
-        '@page Section1{ size:8.5in 11.0in; margin:1.05in 0.6in 1.05in 0.6in; mso-header-margin:.4in; mso-footer-margin:.35in; mso-header:h1; mso-footer:f1; }' +
-        'div.Section1{ page:Section1; }' +
-        'body{ font-family:Calibri,Arial,sans-serif; font-size:12pt; margin:0; }' +
-        '.letterhead-top, .letterhead-bottom{ width:100%; }' +
-        'p.MsoHeader, p.MsoFooter{ margin:0; }' +
-      '</style>' +
-      '</head><body>' +
-        // Registered header: repeats at the top of every page in Word.
-        '<div style="mso-element:header;" id="h1">' +
-          '<p class="MsoHeader"><img class="letterhead-top" src="' + REPORT_LETTERHEAD_TOP + '" /></p>' +
-        '</div>' +
-        // Registered footer: repeats at the bottom of every page in Word.
-        '<div style="mso-element:footer;" id="f1">' +
-          '<p class="MsoFooter"><img class="letterhead-bottom" src="' + REPORT_LETTERHEAD_BOTTOM + '" /></p>' +
-        '</div>' +
-        '<div class="Section1">' + reportDocBodyHtml(f, f.branch) + '</div>' +
-      '</body></html>'
-    );
-  }
-
+  // "Download Word" -- builds a REAL .docx (see buildDocxBlob) whose
+  // letterhead is a genuine Word header + footer, so it repeats on every
+  // page and no longer vanishes after the file is downloaded.
   function downloadReportAsWord(){
     if (!state.reportForm) return;
     var f = state.reportForm;
-    var html = buildReportWordHtml(f);
-    var blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'Draft Report - ' + f.branch + '.doc';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    buildReportWordBlob(f).then(function(blob){
+      downloadBlob(blob, 'Draft Report - ' + f.branch + '.docx');
+    }).catch(function(err){
+      pushNotification('error', 'Could not create the Word file', err.message || 'Something went wrong building the Word file.', { status: 'failed' });
+    });
   }
 
   // ==== Share (Messenger / PDF / Docs) ====
@@ -7517,6 +7452,264 @@
     });
   }
 
+  // ------------------------------------------------------------------
+  // Real .docx builder (used by Draft Report AND Audit Sheet)
+  //
+  // Why this replaced the old ".doc" export: the old file was just HTML
+  // saved with a .doc extension, with the letterhead embedded as base64
+  // <img> tags inside a fake "mso-header". Word does not render inline
+  // base64 images in those HTML headers/footers, so the header and
+  // footer silently disappeared as soon as the file was downloaded and
+  // opened. A real .docx stores the letterhead as actual image files and
+  // as a genuine Word header + footer part, so it repeats on EVERY page
+  // and survives Word, Google Docs, LibreOffice and phone viewers.
+  // ------------------------------------------------------------------
+  var DOCX_BLUE = '1F3A8A';       // matches the letterhead blue
+  var DOCX_INK  = '1A1A1A';
+  var DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  function docxEsc(s){
+    return String(s == null ? '' : s)
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function docxRuns(runs, base){
+    return runs.map(function(r){
+      if (r.tab) return '<w:r><w:tab/></w:r>';
+      var rpr = '';
+      if (r.b || base.b) rpr += '<w:b/><w:bCs/>';
+      if (r.i || base.i) rpr += '<w:i/><w:iCs/>';
+      var color = r.color || base.color;
+      if (color) rpr += '<w:color w:val="' + color + '"/>';
+      var sz = r.sz || base.sz;
+      if (sz) rpr += '<w:sz w:val="' + sz + '"/><w:szCs w:val="' + sz + '"/>';
+      return '<w:r>' + (rpr ? '<w:rPr>' + rpr + '</w:rPr>' : '') +
+             '<w:t xml:space="preserve">' + docxEsc(r.text) + '</w:t></w:r>';
+    }).join('');
+  }
+
+  function docxPara(p){
+    var ppr = '';
+    if (p.keepNext) ppr += '<w:keepNext/>';
+    ppr += '<w:keepLines/>';
+    if (p.borderBottom) ppr += '<w:pBdr><w:bottom w:val="single" w:sz="8" w:space="6" w:color="' + p.borderBottom + '"/></w:pBdr>';
+    else if (p.borderTop) ppr += '<w:pBdr><w:top w:val="single" w:sz="6" w:space="3" w:color="' + p.borderTop + '"/></w:pBdr>';
+    if (p.hanging) ppr += '<w:tabs><w:tab w:val="left" w:pos="' + p.left + '"/></w:tabs>';
+    ppr += '<w:spacing w:before="' + (p.before || 0) + '" w:after="' + (p.after == null ? 60 : p.after) +
+           '" w:line="276" w:lineRule="auto"/>';
+    if (p.left || p.right || p.hanging){
+      ppr += '<w:ind w:left="' + (p.left || 0) + '" w:right="' + (p.right || 0) + '"' +
+             (p.hanging ? ' w:hanging="' + p.hanging + '"' : '') + '/>';
+    }
+    if (p.align) ppr += '<w:jc w:val="' + p.align + '"/>';
+    return '<w:p><w:pPr>' + ppr + '</w:pPr>' + docxRuns(p.runs || [], p) + '</w:p>';
+  }
+
+  function docxSigTable(left, right, totalW){
+    var colW = Math.floor(totalW / 2);
+    function cell(paras){
+      return '<w:tc><w:tcPr><w:tcW w:w="' + colW + '" w:type="dxa"/></w:tcPr>' + paras.map(docxPara).join('') + '</w:tc>';
+    }
+    return '<w:tbl><w:tblPr><w:tblW w:w="' + totalW + '" w:type="dxa"/><w:tblLayout w:type="fixed"/>' +
+      '<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="400" w:type="dxa"/></w:tblCellMar></w:tblPr>' +
+      '<w:tblGrid><w:gridCol w:w="' + colW + '"/><w:gridCol w:w="' + colW + '"/></w:tblGrid>' +
+      '<w:tr><w:trPr><w:cantSplit/></w:trPr>' + cell(left) + cell(right) + '</w:tr></w:tbl>';
+  }
+
+  function docxImage(rid, id, name, cx, cy){
+    var A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+      '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:docPr id="' + id + '" name="' + name + '"/>' +
+      '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="' + A + '" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+      '<a:graphic xmlns:a="' + A + '"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + name + '"/><pic:cNvPicPr/></pic:nvPicPr>' +
+      '<pic:blipFill><a:blip r:embed="' + rid + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+      '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
+      '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>' +
+      '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+  }
+
+  // blocks: array of { type:'p', runs:[...], ...paragraph options } or
+  //         { type:'sig', left:[paras], right:[paras] }
+  function buildDocxBlob(blocks){
+    return new Promise(function(resolve, reject){
+      if (typeof JSZip === 'undefined'){
+        reject(new Error('Word library did not load -- check your internet connection and try again.'));
+        return;
+      }
+      // A4, twips (1/20 pt). Side margins 18mm; top/bottom leave room for the letterhead.
+      var PAGE_W = 11906, PAGE_H = 16838, SIDE = 1020, TOP = 1900, BOTTOM = 1350;
+      var CONTENT_W = PAGE_W - SIDE * 2;
+      // Letterhead images span the full page width (210 mm = 7,560,000 EMU).
+      var IMG_W = 7560000;
+      var TOP_H = Math.round(IMG_W * 214 / 1588);   // 1588x214 px image
+      var BOT_H = Math.round(IMG_W * 118 / 1588);   // 1588x118 px image
+
+      var NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+               'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
+               'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
+      var XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+
+      var body = blocks.map(function(b){
+        if (b.type === 'sig') return docxSigTable(b.left, b.right, CONTENT_W);
+        return docxPara(b);
+      }).join('');
+      // Word wants a paragraph after a closing table / before sectPr.
+      body += '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>';
+
+      var documentXml = XML + '<w:document ' + NS + '><w:body>' + body +
+        '<w:sectPr>' +
+          '<w:headerReference w:type="default" r:id="rId2"/>' +
+          '<w:footerReference w:type="default" r:id="rId3"/>' +
+          '<w:pgSz w:w="' + PAGE_W + '" w:h="' + PAGE_H + '"/>' +
+          '<w:pgMar w:top="' + TOP + '" w:right="' + SIDE + '" w:bottom="' + BOTTOM + '" w:left="' + SIDE +
+            '" w:header="0" w:footer="0" w:gutter="0"/>' +
+        '</w:sectPr></w:body></w:document>';
+
+      // Header: full-bleed letterhead (negative indents pull it out to the page edges).
+      var headerXml = XML + '<w:hdr ' + NS + '><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>' +
+        '<w:ind w:left="-' + SIDE + '" w:right="-' + SIDE + '"/></w:pPr>' +
+        docxImage('rId1', 1, 'Letterhead top', IMG_W, TOP_H) + '</w:p></w:hdr>';
+
+      // Footer: "Page X of Y" above the full-bleed contact-info banner.
+      var pageRun = function(instr){
+        return '<w:r><w:rPr><w:color w:val="787878"/><w:sz w:val="16"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>' +
+               '<w:r><w:rPr><w:color w:val="787878"/><w:sz w:val="16"/></w:rPr><w:instrText xml:space="preserve"> ' + instr + ' </w:instrText></w:r>' +
+               '<w:r><w:rPr><w:color w:val="787878"/><w:sz w:val="16"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>' +
+               '<w:r><w:rPr><w:color w:val="787878"/><w:sz w:val="16"/></w:rPr><w:t>1</w:t></w:r>' +
+               '<w:r><w:rPr><w:color w:val="787878"/><w:sz w:val="16"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>';
+      };
+      var txtRun = function(t){
+        return '<w:r><w:rPr><w:color w:val="787878"/><w:sz w:val="16"/></w:rPr><w:t xml:space="preserve">' + t + '</w:t></w:r>';
+      };
+      var footerXml = XML + '<w:ftr ' + NS + '>' +
+        '<w:p><w:pPr><w:spacing w:before="0" w:after="60" w:line="240" w:lineRule="auto"/><w:ind w:right="0"/><w:jc w:val="right"/></w:pPr>' +
+          txtRun('Page ') + pageRun('PAGE') + txtRun(' of ') + pageRun('NUMPAGES') + '</w:p>' +
+        '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>' +
+          '<w:ind w:left="-' + SIDE + '" w:right="-' + SIDE + '"/></w:pPr>' +
+          docxImage('rId1', 2, 'Letterhead bottom', IMG_W, BOT_H) + '</w:p></w:ftr>';
+
+      var stylesXml = XML + '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+        '<w:docDefaults><w:rPrDefault><w:rPr>' +
+          '<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Arial"/>' +
+          '<w:color w:val="' + DOCX_INK + '"/><w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="en-US"/>' +
+        '</w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>' +
+        '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
+        '</w:styles>';
+
+      var contentTypes = XML + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Default Extension="jpeg" ContentType="image/jpeg"/>' +
+        '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+        '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+        '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' +
+        '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' +
+        '</Types>';
+
+      var REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+      var rootRels = XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="' + REL + '/officeDocument" Target="word/document.xml"/></Relationships>';
+      var docRels = XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="' + REL + '/styles" Target="styles.xml"/>' +
+        '<Relationship Id="rId2" Type="' + REL + '/header" Target="header1.xml"/>' +
+        '<Relationship Id="rId3" Type="' + REL + '/footer" Target="footer1.xml"/></Relationships>';
+      var imgRels = function(file){
+        return XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="' + REL + '/image" Target="media/' + file + '"/></Relationships>';
+      };
+
+      var zip = new JSZip();
+      zip.file('[Content_Types].xml', contentTypes);
+      zip.file('_rels/.rels', rootRels);
+      zip.file('word/document.xml', documentXml);
+      zip.file('word/styles.xml', stylesXml);
+      zip.file('word/header1.xml', headerXml);
+      zip.file('word/footer1.xml', footerXml);
+      zip.file('word/_rels/document.xml.rels', docRels);
+      zip.file('word/_rels/header1.xml.rels', imgRels('letterhead-top.jpeg'));
+      zip.file('word/_rels/footer1.xml.rels', imgRels('letterhead-bottom.jpeg'));
+      zip.file('word/media/letterhead-top.jpeg', REPORT_LETTERHEAD_TOP.split(',')[1], { base64: true });
+      zip.file('word/media/letterhead-bottom.jpeg', REPORT_LETTERHEAD_BOTTOM.split(',')[1], { base64: true });
+      zip.generateAsync({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' }).then(resolve, reject);
+    });
+  }
+
+  // ---- Shared look for both documents ----
+  function docxHeadingBlocks(branchName, dateStr){
+    return [
+      { type: 'p', runs: [{ text: 'BRANCH :  ', b: true, color: DOCX_BLUE }, { text: String(branchName || ''), b: true }], after: 40 },
+      { type: 'p', runs: [{ text: 'DATE :  ', b: true, color: DOCX_BLUE }, { text: String(dateStr || ''), b: true }], after: 120, borderBottom: DOCX_BLUE }
+    ];
+  }
+  function docxSectionTitle(text){
+    return { type: 'p', runs: [{ text: text, b: true, i: true, color: DOCX_BLUE }], before: 300, after: 100, keepNext: true };
+  }
+  function docxNumbered(n, runs){
+    return { type: 'p', runs: [{ text: n + '.' }, { tab: true }].concat(runs), left: 420, hanging: 420, after: 70 };
+  }
+  function docxSignatureBlock(f){
+    function col(label, name, role){
+      var out = [
+        { runs: [{ text: label }], after: 0, keepNext: true },
+        { runs: [{ text: String(name || ''), b: true }], before: 640, after: 0, borderTop: '555555', keepNext: !!role }
+      ];
+      if (role) out.push({ runs: [{ text: role, color: '555555' }], after: 0 });
+      return out;
+    }
+    return { type: 'sig', left: col('Prepared by:', f.preparedBy, 'Auditor'), right: col('Received by:', f.receivedBy, '') };
+  }
+  function docxSpacer(pts){ return { type: 'p', runs: [], after: 0, before: pts || 400 }; }
+
+  function reportDocBlocks(f, branchName){
+    var blocks = docxHeadingBlocks(branchName, f.date);
+    REPORT_SECTIONS.forEach(function(sec){
+      blocks.push(docxSectionTitle(sec.title));
+      var lines = ((f.checklist && f.checklist[sec.title]) || [])
+        .filter(function(t){ return t && String(t).trim() !== ''; });
+      lines.forEach(function(t, i){ blocks.push(docxNumbered(i + 1, [{ text: t }])); });
+    });
+    blocks.push(docxSectionTitle('Findings / Concerns'));
+    f.findings.forEach(function(val, idx){ blocks.push(docxNumbered(idx + 1, [{ text: val || '' }])); });
+    blocks.push(docxSpacer(500));
+    blocks.push(docxSignatureBlock(f));
+    return blocks;
+  }
+
+  function auditSheetDocBlocks(f, branchName){
+    var blocks = docxHeadingBlocks(branchName, f.date);
+    AUDIT_SHEET_SECTIONS.forEach(function(sec){
+      blocks.push(docxSectionTitle(sec.title));
+      if (sec.type === 'fields'){
+        sec.fields.forEach(function(fld){
+          var val = f.cash[fld.id] || '';
+          blocks.push({ type: 'p', runs: [{ text: fld.label + ':  ' }, { text: val || '_______________', b: !!val }], after: 70 });
+        });
+      } else if (sec.type === 'yesno'){
+        sec.items.forEach(function(text, li){
+          var val = (f.yesno[sec.id] || [])[li] || '';
+          var ans = val === 'yes' ? 'Yes' : (val === 'no' ? 'No' : '\u2014');
+          blocks.push(docxNumbered(li + 1, [{ text: text + '  ' }, { text: '[' + ans + ']', b: true }]));
+        });
+      } else {
+        sec.items.forEach(function(label, li){
+          var val = (f.remarksList[sec.id] || [])[li] || '';
+          blocks.push(docxNumbered(li + 1, [{ text: label + (val ? ' \u2014 ' + val : '') }]));
+        });
+      }
+    });
+    blocks.push(docxSectionTitle('Remarks (If There Is Audit Findings or Concerns)'));
+    f.remarks.forEach(function(val, idx){ blocks.push(docxNumbered(idx + 1, [{ text: val || '' }])); });
+    blocks.push(docxSpacer(500));
+    blocks.push(docxSignatureBlock(f));
+    return blocks;
+  }
+
+  function buildReportWordBlob(f){ return buildDocxBlob(reportDocBlocks(f, f.branch)); }
+  function buildAuditSheetWordBlob(f){ return buildDocxBlob(auditSheetDocBlocks(f, f.branch)); }
+
   function downloadBlob(blob, filename){
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -7553,9 +7746,11 @@
   function shareReportAsWord(){
     if (!state.reportForm) return;
     var f = state.reportForm;
-    var html = buildReportWordHtml(f);
-    var blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-    shareOrDownloadFile(blob, 'Draft Report - ' + f.branch + '.doc', 'application/msword', 'Draft Report - ' + f.branch);
+    buildReportWordBlob(f).then(function(blob){
+      shareOrDownloadFile(blob, 'Draft Report - ' + f.branch + '.docx', DOCX_MIME, 'Draft Report - ' + f.branch);
+    }).catch(function(err){
+      pushNotification('error', 'Could not create the Word file', err.message || 'Something went wrong building the Word file.', { status: 'failed' });
+    });
   }
 
   // "Share via Messenger" -- Messenger's own web link (fb-messenger://
