@@ -328,6 +328,88 @@
   .searchwrap input::placeholder{ color:#B4B3CE; }
   .searchwrap input:focus{ border-color:var(--brass); background:rgba(255,255,255,0.1); }
   .searchwrap svg{ position:absolute; left:10px; top:50%; transform:translateY(-50%); opacity:.8; color:var(--brass); }
+
+  /* ---- Search row + View toggle (Standard / Compact / Full details) ---- */
+  .search-row{ display:flex; align-items:center; gap:8px; flex:1; min-width:180px; }
+  .search-row .searchwrap{ min-width:0; }
+  .view-dropdown{ position:relative; flex-shrink:0; }
+  .view-dd-toggle{
+    display:flex; align-items:center; gap:7px; padding:7px 10px 7px 11px; border-radius:8px;
+    background:rgba(255,255,255,0.06); color:#EDEBF6; border:1px solid rgba(23,179,163,0.35);
+    font-family:'Manrope',sans-serif; font-size:13px; font-weight:600; line-height:1.2;
+    cursor:pointer; white-space:nowrap; transition:background .15s ease, border-color .15s ease;
+  }
+  .view-dd-toggle:hover{ background:rgba(255,255,255,0.11); }
+  .view-dropdown.open .view-dd-toggle{ border-color:var(--brass); background:rgba(255,255,255,0.13); }
+  .view-dd-toggle svg{ flex-shrink:0; }
+  .view-dd-toggle .view-dd-icon{ color:var(--brass); }
+  .view-dd-toggle .view-dd-chev{ color:var(--brass); transition:transform .2s ease; }
+  .view-dropdown.open .view-dd-chev{ transform:rotate(180deg); }
+  .view-dd-panel{
+    position:absolute; top:calc(100% + 8px); right:0; z-index:62; width:290px; max-width:86vw;
+    background:#10233A; border:1px solid rgba(23,179,163,0.32); border-radius:12px;
+    box-shadow:0 14px 34px rgba(0,0,0,.4); overflow:hidden; padding:6px;
+  }
+  .view-dd-item{
+    display:flex; align-items:center; gap:10px; width:100%; padding:9px 10px; border:0; border-radius:8px;
+    background:transparent; color:#EDEBF6; font-family:'Manrope',sans-serif; text-align:left; cursor:pointer;
+  }
+  .view-dd-item:hover{ background:#1B3A5C; }
+  .view-dd-item.active{ background:rgba(23,179,163,0.18); color:#fff; }
+  .view-dd-item .vd-icon{ color:var(--brass); flex-shrink:0; }
+  .view-dd-item .vd-text{ display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
+  .view-dd-item .vd-name{ font-size:13px; font-weight:600; }
+  .view-dd-item .vd-desc{ font-size:10.5px; opacity:.68; }
+  .view-dd-item .vd-check{ color:var(--brass); flex-shrink:0; visibility:hidden; }
+  .view-dd-item.active .vd-check{ visibility:visible; }
+  .view-dd-legend{ margin-top:6px; padding:9px 6px 4px; border-top:1px solid rgba(23,179,163,0.25); }
+  .view-dd-legend-title{ font-family:'Manrope',sans-serif; font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#EDEBF6; opacity:.7; margin-bottom:7px; }
+  .view-dd-legend-chips{ display:flex; flex-wrap:wrap; gap:5px; }
+  .view-dd-legend .status-chip{ font-size:10.5px; padding:2px 8px 2px 6px; }
+
+  /* The status subline under the name is phone-only (desktop has its own Status column).
+     The phone block further down switches it back on. */
+  .name-status-mobile{ display:none; }
+
+  /* Compact: customer name only (works on desktop table AND phone list) */
+  main.view-compact table{ min-width:0; }
+  main.view-compact thead{ display:none; }
+  main.view-compact tbody td{ display:none; }
+  main.view-compact tbody td.name{ display:block; padding:10px 14px; font-size:14px; }
+  main.view-compact .name-status-mobile{ display:none; }
+
+  /* Full details: every customer as a card with all of their info visible */
+  .cardswrap{ display:grid; grid-template-columns:repeat(auto-fill, minmax(380px, 1fr)); gap:12px; align-items:stretch; }
+  .ccard{
+    background:var(--paper-card); border:1px solid var(--rule); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:12px 14px; cursor:pointer; transition:border-color .12s ease, background .12s ease;
+    display:flex; flex-direction:column;
+  }
+  .ccard:hover{ border-color:var(--brass); }
+  .ccard.hl{ background:var(--hl-bg); box-shadow:var(--shadow), inset 4px 0 0 var(--hl-bar); }
+  .ccard.hl:hover{ background:var(--hl-hover); }
+  .ccard-head{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+    padding-bottom:8px; margin-bottom:9px; border-bottom:1px solid var(--rule);
+  }
+  .ccard-name{ font-weight:700; font-size:14.5px; min-width:0; overflow-wrap:anywhere; }
+  .ccard-head .status-chip{ flex-shrink:0; }
+  /* Same two columns + same field order on every card, with the remarks pinned
+     to the bottom, so cards in a row line up edge to edge. */
+  .ccard-grid{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 14px; flex:1 1 auto; align-content:start; }
+  .cc-k{ font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); }
+  .cc-v{ font-size:13px; overflow-wrap:anywhere; min-height:17px; }
+  .cc-v.blank{ color:#A6A093; }
+  .ccard-remarks{ margin-top:10px; padding-top:8px; border-top:1px dashed var(--rule); }
+  .ccard-remarks + .ccard-remarks{ margin-top:8px; }
+  .cc-remarks-text{ font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .cc-remarks-text.empty{ font-style:italic; color:#A6A093; }
+
+  @media (max-width:680px){
+    .view-dd-toggle{ padding:8px 9px; }
+    .view-dd-toggle .view-dd-label{ display:none; }
+    .cardswrap{ grid-template-columns:1fr; gap:10px; }
+  }
   .iconbtn{
     background:rgba(255,255,255,0.06); color:#EDEBF6; border:1px solid rgba(23,179,163,0.28); border-radius:8px;
     width:28px; height:28px; display:flex; align-items:center; justify-content:center;
@@ -669,31 +751,43 @@
   tbody tr:hover td{ background:var(--paper-alt); }
   tbody td.name{ font-weight:500; white-space:normal; min-width:180px; }
 
-  /* ---- Auditor-remarks severity highlight ----
-     Once a customer has an Auditor Remark saved, the whole row is
-     tinted so the severity is obvious at a glance while scrolling.
-     The color is computed automatically (see rowSeverity() in the
-     script) mainly from Outstanding Balance, plus automatic red
-     overrides for delinquent/repossessed/unit-issue accounts — see
-     the comment above rowSeverity() for the exact rule and the two
-     threshold numbers you can tune.
-       green  = small/no outstanding balance (not much of a problem)
-       orange = moderate outstanding balance
-       red    = high balance, or delinquent/repossessed/unit issue */
-  tbody tr.sev-green{ background:var(--green-ink-light); }
-  tbody tr.sev-orange{ background:#FCEBCB; }
-  tbody tr.sev-red{ background:var(--red-ink-light); }
-  tbody tr.sev-green:hover td{ background:#CFEEDA; }
-  tbody tr.sev-orange:hover td{ background:#F8DFAE; }
-  tbody tr.sev-red:hover td{ background:#F6D2CB; }
-  tbody tr.sev-green td.name{ box-shadow:inset 4px 0 0 var(--green-ink); }
-  tbody tr.sev-orange td.name{ box-shadow:inset 4px 0 0 #B8860B; }
-  tbody tr.sev-red td.name{ box-shadow:inset 4px 0 0 var(--red-ink); }
+  /* ---- Auditor-remarks highlight: one DESIGNATED COLOR PER STATUS ----
+     Once a customer has an Auditor Remark saved (i.e. has been reviewed),
+     the whole row / card is tinted with the color of that customer's
+     status. The same colors are used on the status chips, so the chip
+     and the highlighted row always match. Change a color by editing its
+     four values below:
+       --hl-bg    row tint        --hl-hover  tint while hovering
+       --hl-bar   left edge bar   --hl-ink    chip text / status text
+     Families:  BNEW = amber / red / green / blue   (OD / DEL / ADV / CU)
+                REPO = orange / rose / teal / cyan
+                RSTR = violet / magenta / lime / indigo                     */
+  .st-bnew-od  { --hl-bg:#FFF0C2; --hl-hover:#FFE6A0; --hl-bar:#E0A100; --hl-ink:#7A5600; }
+  .st-bnew-del { --hl-bg:#FADAD6; --hl-hover:#F5C5BF; --hl-bar:#D0392B; --hl-ink:#8E1F15; }
+  .st-bnew-adv { --hl-bg:#D9F2DF; --hl-hover:#C5EBCF; --hl-bar:#2E9E4F; --hl-ink:#17622E; }
+  .st-bnew-cu  { --hl-bg:#D8E8FA; --hl-hover:#C4DBF5; --hl-bar:#2F78C8; --hl-ink:#174A85; }
+  .st-repo-od  { --hl-bg:#FFDDBF; --hl-hover:#FFCFA5; --hl-bar:#E8700A; --hl-ink:#8A4106; }
+  .st-repo-del { --hl-bg:#F9CFDD; --hl-hover:#F4B9CC; --hl-bar:#C2275B; --hl-ink:#7E1238; }
+  .st-repo-adv { --hl-bg:#CDF0EA; --hl-hover:#B7E7DF; --hl-bar:#12998A; --hl-ink:#0A5C53; }
+  .st-repo-cu  { --hl-bg:#D0EDF7; --hl-hover:#BAE3F2; --hl-bar:#1A93BA; --hl-ink:#0C5873; }
+  .st-rstr-od  { --hl-bg:#E6DAF7; --hl-hover:#D8C7F1; --hl-bar:#7C4FC4; --hl-ink:#46267F; }
+  .st-rstr-del { --hl-bg:#F3D0F0; --hl-hover:#EBBAE6; --hl-bar:#B02FA6; --hl-ink:#70176A; }
+  .st-rstr-adv { --hl-bg:#E6F2C6; --hl-hover:#D8EAA8; --hl-bar:#86A60E; --hl-ink:#4A5F05; }
+  .st-rstr-cu  { --hl-bg:#D6DBF7; --hl-hover:#C2C9F1; --hl-bar:#4B58C2; --hl-ink:#26307F; }
+  .st-other    { --hl-bg:#E8EAF0; --hl-hover:#DADDE6; --hl-bar:#7A8499; --hl-ink:#3D4659; }
+  tbody tr.hl{ background:var(--hl-bg); }
+  tbody tr.hl:hover td{ background:var(--hl-hover); }
+  tbody tr.hl td.name{ box-shadow:inset 4px 0 0 var(--hl-bar); }
+  tbody tr.hl td.name.has-remarks{ color:var(--hl-ink); }   /* name + check mark follow the status color */
+  tbody tr.hl td.name.has-remarks::before{ color:var(--hl-ink); }
   .status-chip{
     display:inline-flex; align-items:center; gap:4px; padding:2px 9px 2px 7px; border-radius:999px; font-size:11px; font-weight:700;
   }
   .status-chip::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.75; flex-shrink:0; }
   .status-chip.default{ background:var(--rule); color:var(--ink-soft); }
+  /* Status chips wear their designated status color (ring keeps them visible on a same-color row) */
+  .status-chip[class*=" st-"]{ background:var(--hl-bg); color:var(--hl-ink); box-shadow:inset 0 0 0 1.5px var(--hl-bar); }
+  tbody td .name-status-mobile[class*=" st-"]{ color:var(--hl-ink); }
   .status-chip.good{ background:var(--green-ink-light); color:var(--green-ink); }
   .status-chip.bad{ background:var(--red-ink-light); color:var(--red-ink); }
   .status-chip.unit-good{ background:#D9EFD9; color:#1D6B22; }
@@ -1639,6 +1733,11 @@
     activeBranch: null,
     search: '',
     statusFilter: '',
+    // List layout, remembered on this device: 'standard' (as before),
+    // 'compact' (customer name only) or 'full' (all customer info shown
+    // on the list, no tapping needed).
+    viewMenuOpen: false,
+    viewMode: 'standard',   // restored from this device's saved choice right after lsGet() is defined
     selected: null,
     loading: false,
     error: '',
@@ -3568,8 +3667,29 @@
     return val;
   }
 
+  // The 12 customer statuses, each with its own designated color (see the
+  // .st-* palette in the CSS). Returns e.g. 'bnew-od', or '' if the value
+  // isn't one of the 12.
+  var STATUS_COLOR_LIST = ['BNEW - OD', 'BNEW - DEL', 'BNEW - ADV', 'BNEW - CU',
+                           'REPO - OD', 'REPO - DEL', 'REPO - ADV', 'REPO - CU',
+                           'RSTR - OD', 'RSTR - DEL', 'RSTR - ADV', 'RSTR - CU'];
+  function statusKey(val){
+    var m = String(val || '').toUpperCase().trim().match(/^(BNEW|REPO|RSTR)\s*-\s*(OD|DEL|ADV|CU)$/);
+    return m ? (m[1] + '-' + m[2]).toLowerCase() : '';
+  }
+  function statusKeyCls(val){ var k = statusKey(val); return k ? ' st-' + k : ''; }
+  // Row / card highlight: only once the customer has an Auditor Remark
+  // (i.e. has been reviewed). Uses that customer's own status color; a
+  // customer with a blank/unrecognised status still gets a neutral tint.
+  function rowHighlightCls(r, remarks){
+    if (!String(remarks || '').trim()) return '';
+    return ' hl ' + (statusKey(r['Customer Status']) ? 'st-' + statusKey(r['Customer Status']) : 'st-other');
+  }
+
   function statusClass(val){
     if (!val) return 'default';
+    var sk = statusKey(val);
+    if (sk) return 'st-' + sk;
     var v = String(val).toLowerCase();
     if (v.indexOf('good') > -1 || v.indexOf('paid') > -1 || v.indexOf('current') > -1) return 'good';
     if (v.indexOf('bad') > -1 || v.indexOf('delay') > -1 || v.indexOf('overdue') > -1 || v.indexOf('default') > -1) return 'bad';
@@ -3709,6 +3829,12 @@
     try{ window.localStorage.setItem(LS_PREFIX + key, value); return true; }
     catch(e){ memoryFallback[key] = value; return false; }
   }
+
+  // Restore the list view (Standard / Compact / Full details) last used on this device.
+  (function(){
+    var v = lsGet('viewMode');
+    if (v === 'compact' || v === 'full') state.viewMode = v;
+  })();
 
   async function persistPendingQueue(){
     lsSet('pending-writes', JSON.stringify(state.pendingQueue));
@@ -4903,6 +5029,91 @@
     return parts[0] || '';
   }
 
+  // ---- List view modes: toggle button + "Full details" cards ----
+  function viewToggleHtml(){
+    var modes = [
+      { id: 'standard', label: 'Standard', desc: 'Table with the main columns',
+        icon: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="10" x2="9" y2="20"/>' },
+      { id: 'compact', label: 'Compact', desc: 'Customer name only',
+        icon: '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>' },
+      { id: 'full', label: 'Full details', desc: 'All customer info, no clicking needed',
+        icon: '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><line x1="13" y1="10" x2="18" y2="10"/><line x1="13" y1="14" x2="18" y2="14"/>' }
+    ];
+    var svg = function(inner, cls){
+      return '<svg class="' + cls + '" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+    };
+    var cur = modes.filter(function(m){ return m.id === state.viewMode; })[0] || modes[0];
+    return '<div class="view-dropdown' + (state.viewMenuOpen ? ' open' : '') + '" id="viewDropdown">' +
+      '<button type="button" class="view-dd-toggle" id="viewDropdownToggle" title="Change list view" aria-haspopup="true" aria-expanded="' + !!state.viewMenuOpen + '">' +
+        svg(cur.icon, 'view-dd-icon') +
+        '<span class="view-dd-label">' + cur.label + '</span>' +
+        svg('<polyline points="6 9 12 15 18 9"/>', 'view-dd-chev') +
+      '</button>' +
+      (state.viewMenuOpen ?
+        '<div class="view-dd-panel" role="menu">' + modes.map(function(m){
+          return '<button type="button" class="view-dd-item' + (m.id === state.viewMode ? ' active' : '') + '" data-view="' + m.id + '" role="menuitemradio" aria-checked="' + (m.id === state.viewMode) + '">' +
+            svg(m.icon, 'vd-icon') +
+            '<span class="vd-text"><span class="vd-name">' + m.label + '</span><span class="vd-desc">' + m.desc + '</span></span>' +
+            svg('<polyline points="20 6 9 17 4 12"/>', 'vd-check') +
+          '</button>';
+        }).join('') +
+        '<div class="view-dd-legend"><div class="view-dd-legend-title">Status colors</div><div class="view-dd-legend-chips">' +
+          STATUS_COLOR_LIST.map(function(st){ return '<span class="status-chip ' + statusClass(st) + '">' + st + '</span>'; }).join('') +
+        '</div></div></div>'
+      : '') +
+    '</div>';
+  }
+
+  // Every field the customer drawer would show (same rules), minus anything
+  // that has its own spot on the card (name, status chip, remarks). Blank
+  // fields are kept (shown as a dash) so every card has the same fields in
+  // the same positions and they line up across the grid.
+  function customerDetailPairs(b, r){
+    var headers = (b ? b.headers : Object.keys(r)).slice();
+    var skip = {'Customer Name':1, 'Auditor Remarks':1, 'Old Remarks':1, 'Customer Status':1, '_row':1};
+    var hasDue = headers.some(function(h){
+      var n = String(h).toLowerCase().replace(/\s+/g, ' ').trim();
+      return TOTAL_DUE_ALIASES.some(function(alias){ return alias.toLowerCase() === n; });
+    });
+    if (!hasDue && getTotalDue(r) !== '') headers.push('Total Due this Month');
+    var red = {'outstanding balance':1};
+    TOTAL_DUE_ALIASES.forEach(function(alias){ red[alias.toLowerCase()] = 1; });
+    return headers.filter(function(h){ return !skip[h] && h !== ''; }).map(function(h){
+      var v = fmtValue(h, getField(r, h));
+      var t = String(v === undefined || v === null ? '' : v).trim();
+      var blank = (t === '' || t === '\u2014' || t === '-');
+      return { k: h, v: blank ? '\u2014' : v, blank: blank, red: !blank && !!red[String(h).toLowerCase().replace(/\s+/g, ' ').trim()] };
+    });
+  }
+
+  function fullCardsHtml(b, rows){
+    return '<div class="cardswrap">' + rows.map(function(r){
+      var remarks = r['Auditor Remarks'] || '';
+      var oldRemarks = r['Old Remarks'] || '';
+      var pending = rowHasPending(b.branch, r._row);
+      var rowDraft = loadDraft(b.branch, r._row);
+      var rowHasDraft = rowDraft !== null && rowDraft !== remarks;
+      var hl = rowHighlightCls(r, remarks);
+      var pairs = customerDetailPairs(b, r).map(function(p){
+        return '<div><div class="cc-k">' + esc(p.k) + '</div><div class="cc-v' + (p.red ? ' amount-red' : '') + '">' + esc(p.v) + '</div></div>';
+      }).join('');
+      return '<div class="ccard' + hl + '" data-row="' + r._row + '">' +
+        '<div class="ccard-head">' +
+          '<span class="ccard-name">' +
+            (pending ? '<span class="pending-dot" title="Unsynced changes \u2014 will save automatically when back online"></span>' : '') +
+            (rowHasDraft ? '<span class="draft-dot" title="Unsaved draft remarks on this device"></span>' : '') +
+            esc(r['Customer Name']) +
+          '</span>' +
+          '<span class="status-chip ' + statusClass(r['Customer Status']) + '">' + esc(r['Customer Status'] || '\u2014') + '</span>' +
+        '</div>' +
+        '<div class="ccard-grid">' + pairs + '</div>' +
+        '<div class="ccard-remarks"><div class="cc-k">Auditor remarks</div>' +
+          '<div class="cc-remarks-text' + (remarks ? '' : ' empty') + '">' + esc(remarks || 'No remarks yet \u2014 tap to add') + '</div></div>' +
+        (String(oldRemarks).trim() ? '<div class="ccard-remarks"><div class="cc-k">Old remarks</div><div class="cc-remarks-text">' + esc(oldRemarks) + '</div></div>' : '') +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
   function filteredRows(){
     var b = currentBranch();
     if (!b) return [];
@@ -5122,8 +5333,8 @@
       // Highlight only kicks in once the auditor has actually left a
       // remark on this customer (per request) — an empty/blank remarks
       // cell keeps the row plain white regardless of status.
-      var sev = String(remarks).trim() ? rowSeverity(r) : '';
-      return '<tr data-row="' + r._row + '"' + (sev ? ' class="sev-' + sev + '"' : '') + '>' +
+      var hl = rowHighlightCls(r, remarks);
+      return '<tr data-row="' + r._row + '"' + (hl ? ' class="' + hl.trim() + '"' : '') + '>' +
         '<td class="name' + (r['Auditor Remarks'] ? ' has-remarks' : '') + '">' +
           '<span class="name-line">' +
             (pending ? '<span class="pending-dot" title="Unsynced changes — will save automatically when back online"></span>' : '') +
@@ -5134,7 +5345,7 @@
           // place of the chevron column (which is hidden on mobile — see
           // the max-width:680px block). Hidden on desktop by default since
           // the desktop view already has its own status-chip column.
-          (r['Customer Status'] ? '<span class="name-status-mobile' + (/del/i.test(r['Customer Status']) ? ' del' : (/\bod\b/i.test(r['Customer Status']) ? ' od' : '')) + '">' + esc(r['Customer Status']) + '</span>' : '') +
+          (r['Customer Status'] ? '<span class="name-status-mobile' + statusKeyCls(r['Customer Status']) + (/del/i.test(r['Customer Status']) ? ' del' : (/\bod\b/i.test(r['Customer Status']) ? ' od' : '')) + '">' + esc(r['Customer Status']) + '</span>' : '') +
         '</td>' +
         '<td>' + esc(r['Model']) + '</td>' +
         '<td class="mono">' + esc(r['Engine No']) + '</td>' +
@@ -5250,17 +5461,21 @@
           '</div>' +
         '</div>' +
         '<div class="topbar-row2">' +
-          '<div class="searchwrap">' +
-            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EDEBF6" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
-            '<input type="text" id="searchInput" placeholder="Search by name, model, or engine no..." value="' + esc(state.search) + '" />' +
+          '<div class="search-row">' +
+            '<div class="searchwrap">' +
+              '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EDEBF6" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+              '<input type="text" id="searchInput" placeholder="Search by name, model, or engine no..." value="' + esc(state.search) + '" />' +
+            '</div>' +
+            viewToggleHtml() +
           '</div>' +
           topbarAuditDateHtml(b) +
         '</div>' +
         headerPillsHtml +
       '</div>' +
       connBanner +
-      '<main>' +
-        (rows.length ?
+      '<main class="view-' + state.viewMode + '">' +
+        (rows.length && state.viewMode === 'full' ? fullCardsHtml(b, rows) :
+         rows.length ?
         '<div class="tablewrap"><table><thead><tr>' +
           '<th>Customer</th><th>Model</th><th>Engine No</th><th>Last payment</th><th>Outstanding balance</th>' +
           '<th>Total due (month)</th><th>Status</th><th>Auditor remarks</th><th></th>' +
@@ -8685,11 +8900,44 @@
       render();
     }
 
-    document.querySelectorAll('tbody tr').forEach(function(el){
+    document.querySelectorAll('tbody tr, .ccard').forEach(function(el){
       el.onclick = function(){
         openCustomerRow(parseInt(el.getAttribute('data-row'), 10));
       };
     });
+    var viewDdToggle = document.getElementById('viewDropdownToggle');
+    if (viewDdToggle){
+      viewDdToggle.onclick = function(e){
+        e.stopPropagation();
+        state.viewMenuOpen = !state.viewMenuOpen;
+        if (state.viewMenuOpen){
+          state.branchDropdownOpen = false; state.statusDropdownOpen = false;
+          state.notifPanelOpen = false; state.menuOpen = false;
+        }
+        render();
+      };
+    }
+    document.querySelectorAll('.view-dd-item').forEach(function(item){
+      item.onclick = function(e){
+        e.stopPropagation();
+        state.viewMode = item.getAttribute('data-view');
+        state.viewMenuOpen = false;
+        lsSet('viewMode', state.viewMode);
+        render();
+      };
+    });
+    if (state.viewMenuOpen){
+      // close the view dropdown on any click outside it
+      setTimeout(function(){
+        document.addEventListener('click', function closeViewDropdown(e){
+          var wrap = document.getElementById('viewDropdown');
+          if (wrap && !wrap.contains(e.target)){
+            state.viewMenuOpen = false;
+            render();
+          }
+        }, { once: true });
+      }, 0);
+    }
     var overlay = document.getElementById('overlay');
     if (overlay){
       overlay.onclick = function(e){ if (e.target.id === 'overlay'){ closeDetail(); } };
