@@ -3366,10 +3366,14 @@
     var b = currentBranch();
     var rows = filteredRows().filter(function(r){
       var status = String(r['Customer Status'] || '').replace(/\s+/g, ' ').trim().toUpperCase();
-      return PRINT_EXCLUDE_CATEGORIES.indexOf(status) === -1;
+      if (PRINT_EXCLUDE_CATEGORIES.indexOf(status) !== -1) return false;
+      // Accounts that already have an Auditor Remark are considered done,
+      // so they are left out of the printed list.
+      var remark = String(r['Auditor Remarks'] == null ? '' : r['Auditor Remarks']).trim();
+      return remark === '';
     });
     if (!b || !rows.length){
-      alert('No rows to print for this branch.');
+      alert('No rows to print for this branch (all accounts already have remarks).');
       return;
     }
 
