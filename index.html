@@ -150,6 +150,13 @@
   .topbar-row2{
     display:flex; align-items:center; gap:9px; width:100%; margin-top:9px; flex-wrap:wrap;
   }
+  /* ---- Visit progress bar (OD & DEL customers with remarks / total), shown in the view dropdown ---- */
+  .visit-progress{ width:100%; }
+  .visit-progress-top{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12px; font-weight:600; color:#EDEBF6; margin-bottom:4px; }
+  .visit-progress-top .vp-sub{ font-weight:500; opacity:.75; }
+  .visit-progress-track{ height:9px; border-radius:999px; background:rgba(255,255,255,0.14); overflow:hidden; }
+  .visit-progress-fill{ height:100%; border-radius:999px; background:linear-gradient(90deg, var(--brass-dark), var(--brass)); transition:width .35s ease; }
+  .visit-progress-fill.done{ background:linear-gradient(90deg, #1f9d57, #3ddc84); }
   select#branchSelect, select#statusFilter{
     background:rgba(255,255,255,0.06); color:#EDEBF6; border:1px solid rgba(23,179,163,0.35); border-radius:8px;
     padding:7px 28px 7px 11px; font-size:13px; font-family:'Manrope',sans-serif; font-weight:500;
@@ -5033,6 +5040,30 @@
     return parts[0] || '';
   }
 
+  // Progress of the OD / DEL accounts only (ADV / CU / unclassified are not
+  // counted). An account counts as visited once it has an Auditor Remark.
+  function visitProgressHtml(){
+    var b = currentBranch();
+    if (!b) return '';
+    var total = 0, done = 0;
+    b.rows.forEach(function(r){
+      var st = String(r['Customer Status'] || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      if (LANDING_DEFAULT_CATEGORIES.indexOf(st) === -1) return;
+      total++;
+      if (String(r['Auditor Remarks'] == null ? '' : r['Auditor Remarks']).trim() !== '') done++;
+    });
+    if (!total) return '';
+    var pct = Math.round((done / total) * 100);
+    return '<div class="visit-progress" title="' + done + ' of ' + total + ' OD/DEL customers have remarks">' +
+      '<div class="view-dd-legend-title">Visit progress (OD &amp; DEL)</div>' +
+      '<div class="visit-progress-top">' +
+        '<span>' + done + ' / ' + total + ' customers (' + pct + '%)</span>' +
+        '<span class="vp-sub">' + (total - done) + ' remaining</span>' +
+      '</div>' +
+      '<div class="visit-progress-track"><div class="visit-progress-fill' + (pct >= 100 ? ' done' : '') + '" style="width:' + pct + '%"></div></div>' +
+    '</div>';
+  }
+
   // ---- List view modes: toggle button + "Full details" cards ----
   function viewToggleHtml(){
     var modes = [
@@ -5061,9 +5092,7 @@
             svg('<polyline points="20 6 9 17 4 12"/>', 'vd-check') +
           '</button>';
         }).join('') +
-        '<div class="view-dd-legend"><div class="view-dd-legend-title">Status colors</div><div class="view-dd-legend-chips">' +
-          STATUS_COLOR_LIST.map(function(st){ return '<span class="status-chip ' + statusClass(st) + '">' + st + '</span>'; }).join('') +
-        '</div></div></div>'
+        '<div class="view-dd-legend">' + visitProgressHtml() + '</div></div>'
       : '') +
     '</div>';
   }
