@@ -8,6 +8,8 @@
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#0A1B2E" />
 <link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
@@ -385,37 +387,57 @@
   main.view-compact tbody td.name{ display:block; padding:10px 14px; font-size:14px; }
   main.view-compact .name-status-mobile{ display:none; }
 
-  /* Full details: every customer as a card with all of their info visible */
-  .cardswrap{ display:grid; grid-template-columns:repeat(auto-fill, minmax(380px, 1fr)); gap:12px; align-items:stretch; }
+  /* Full details: every customer as ONE horizontal row —
+     [ name + status ] [ all account fields in a strip ] [ auditor remarks + old remarks ] */
+  .cardswrap{ display:flex; flex-direction:column; gap:8px; }
   .ccard{
     background:var(--paper-card); border:1px solid var(--rule); border-radius:var(--radius);
-    box-shadow:var(--shadow); padding:12px 14px; cursor:pointer; transition:border-color .12s ease, background .12s ease;
-    display:flex; flex-direction:column;
+    box-shadow:0 2px 8px rgba(16,42,67,0.07); padding:10px 14px; cursor:pointer;
+    transition:border-color .12s ease, background .12s ease;
+    display:grid; grid-template-columns:minmax(170px, 215px) minmax(0, 1fr) minmax(250px, 340px);
+    column-gap:18px; align-items:start;
   }
   .ccard:hover{ border-color:var(--brass); }
-  .ccard.hl{ background:var(--hl-bg); box-shadow:var(--shadow), inset 4px 0 0 var(--hl-bar); }
+  .ccard.hl{ background:var(--hl-bg); box-shadow:0 2px 8px rgba(16,42,67,0.07), inset 4px 0 0 var(--hl-bar); }
   .ccard.hl:hover{ background:var(--hl-hover); }
   .ccard-head{
-    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
-    padding-bottom:8px; margin-bottom:9px; border-bottom:1px solid var(--rule);
+    display:flex; flex-direction:column; align-items:flex-start; gap:7px;
+    padding:0 16px 0 0; margin:0; border-bottom:0; border-right:1px solid var(--rule); align-self:stretch;
   }
-  .ccard-name{ font-weight:700; font-size:14.5px; min-width:0; overflow-wrap:anywhere; }
+  .ccard-name{ font-weight:700; font-size:14px; line-height:1.3; min-width:0; overflow-wrap:anywhere; }
   .ccard-head .status-chip{ flex-shrink:0; }
-  /* Same two columns + same field order on every card, with the remarks pinned
-     to the bottom, so cards in a row line up edge to edge. */
-  .ccard-grid{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 14px; flex:1 1 auto; align-content:start; }
-  .cc-k{ font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); }
+  .ccard-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(132px, 1fr));
+    gap:7px 14px; align-content:start;
+  }
+  .cc-k{ font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cc-v{ font-size:13px; overflow-wrap:anywhere; min-height:17px; }
   .cc-v.blank{ color:#A6A093; }
-  .ccard-remarks{ margin-top:10px; padding-top:8px; border-top:1px dashed var(--rule); }
-  .ccard-remarks + .ccard-remarks{ margin-top:8px; }
-  .cc-remarks-text{ font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .ccard-side{ display:flex; flex-direction:column; gap:8px; min-width:0; padding-left:16px; border-left:1px solid var(--rule); align-self:stretch; }
+  .ccard-remarks{ margin:0; padding:0; border:0; min-width:0; }
+  .cc-remarks-text{ font-size:12.5px; white-space:pre-wrap; overflow-wrap:anywhere; }
   .cc-remarks-text.empty{ font-style:italic; color:#A6A093; }
+  /* Old remarks: one line per dated entry, kept short so rows stay compact (scrolls if long). */
+  .cc-old-list{ max-height:84px; overflow-y:auto; padding-right:4px; display:flex; flex-direction:column; gap:3px; }
+  .cc-old-entry{ font-size:12px; line-height:1.4; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--ink); }
+  .cc-old-date{ display:inline-block; margin-right:6px; padding:0 6px; border-radius:6px; background:var(--brass-light); color:var(--brass-dark); font-weight:700; font-size:10.5px; white-space:nowrap; }
 
   @media (max-width:680px){
     .view-dd-toggle{ padding:8px 9px; }
     .view-dd-toggle .view-dd-label{ display:none; }
-    .cardswrap{ grid-template-columns:1fr; gap:10px; }
+    .cardswrap{ gap:10px; }
+  }
+  /* Narrower screens: remarks drop under the fields, still one row per customer. */
+  @media (max-width:1180px){
+    .ccard{ grid-template-columns:minmax(150px, 200px) minmax(0, 1fr); row-gap:10px; }
+    .ccard-side{ grid-column:1 / -1; flex-direction:row; gap:18px; padding:9px 0 0; border-left:0; border-top:1px dashed var(--rule); }
+    .ccard-side .ccard-remarks{ flex:1 1 0; }
+  }
+  @media (max-width:680px){
+    .ccard{ grid-template-columns:1fr; }
+    .ccard-head{ flex-direction:row; align-items:flex-start; justify-content:space-between; border-right:0; border-bottom:1px solid var(--rule); padding:0 0 8px; }
+    .ccard-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .ccard-side{ flex-direction:column; gap:8px; }
   }
   .iconbtn{
     background:rgba(255,255,255,0.06); color:#EDEBF6; border:1px solid rgba(23,179,163,0.28); border-radius:8px;
@@ -1675,10 +1697,31 @@
   <div class="splash-sub">Loading your ledgers&hellip;</div>
   <div class="splash-bar"><div class="splash-bar-fill"></div></div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<script>
+/* Heavy libraries (Excel import/export, PDF, zip) used to load with the page and
+   competed with the very first Google Sheet request for bandwidth. They are only
+   needed once someone imports/exports/prints, so they now load in the background
+   AFTER the dashboard is up (or instantly on the first tap, whichever is first). */
+(function(){
+  var loaded = false;
+  var LIBS = [
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+  ];
+  function loadHeavyLibs(){
+    if (loaded) return; loaded = true;
+    LIBS.forEach(function(u){ var el = document.createElement('script'); el.src = u; el.async = true; document.head.appendChild(el); });
+  }
+  window.__loadHeavyLibs = loadHeavyLibs;
+  window.addEventListener('pointerdown', loadHeavyLibs, { once:true, passive:true });
+  window.addEventListener('load', function(){
+    if ('requestIdleCallback' in window) requestIdleCallback(loadHeavyLibs, { timeout: 4000 });
+    else setTimeout(loadHeavyLibs, 2500);
+  });
+})();
+</script>
 <div id="app"></div>
 
 <!-- ===================== AI AUDITOR ASSISTANT ======================
@@ -4236,7 +4279,23 @@
     lsSet('sheet-view-url', u);
   }
 
-  async function fetchData(opts){
+  // Background (silent) refreshes share one in-flight request instead of
+  // stacking up; explicit/forced refreshes (after an import or save) always
+  // run so they can never be answered by an older, already-started request.
+  var _fetchInFlight = null;
+  function fetchData(opts){
+    if (opts && opts.silent){
+      if (_fetchInFlight) return _fetchInFlight;
+      var p = fetchDataImpl(opts);
+      _fetchInFlight = p;
+      var clear = function(){ if (_fetchInFlight === p) _fetchInFlight = null; };
+      p.then(clear, clear);
+      return p;
+    }
+    return fetchDataImpl(opts);
+  }
+
+  async function fetchDataImpl(opts){
     var silent = !!(opts && opts.silent);
     if (isOffline()){
       syncOnlineState();
@@ -4264,8 +4323,17 @@
       // like it did nothing because it was served a stale cached reply
       // instead of actually hitting the Apps Script backend.
       var fetchUrl = state.url + (state.url.indexOf('?') === -1 ? '?' : '&') + '_ts=' + Date.now();
-      var res = await fetchWithTimeout(fetchUrl, { method:'GET', cache:'no-store' }, FETCH_TIMEOUT_MS);
-      var data = await res.json();
+      // One automatic quick retry: an Apps Script cold start or a dropped
+      // packet on mobile data used to surface as "Sync failed" straight away.
+      var rawText;
+      try{
+        rawText = await (await fetchWithTimeout(fetchUrl, { method:'GET', cache:'no-store' }, FETCH_TIMEOUT_MS)).text();
+      }catch(firstErr){
+        if (isOffline()) throw firstErr;
+        await new Promise(function(r){ setTimeout(r, 500); });
+        rawText = await (await fetchWithTimeout(fetchUrl + '&r=1', { method:'GET', cache:'no-store' }, FETCH_TIMEOUT_MS)).text();
+      }
+      var data = JSON.parse(rawText);
       if (!data.success) throw new Error(data.error || 'Could not load data.');
       var allBranches = data.branches || [];
       // Tabs hidden on the Google Sheet come back flagged hidden:true —
@@ -4275,8 +4343,11 @@
       // Skip the (expensive, flicker-causing) full re-render entirely when
       // the freshly-fetched data is identical to what's already on screen —
       // which, for a silent background refresh, is true most of the time.
-      var changed = JSON.stringify(newBranches) !== JSON.stringify(state.branches) ||
-                    JSON.stringify(newHidden) !== JSON.stringify(state.hiddenBranches);
+      // Compare the raw reply text with the previous one (cheap) instead of
+      // JSON.stringify-ing the whole dataset twice on every refresh. Local
+      // unsynced edits also force a re-render so they are re-applied on screen.
+      var changed = (rawText !== state._lastRawData) || state.pendingQueue.length > 0;
+      state._lastRawData = rawText;
       state.hiddenBranches = newHidden;
       state.branches = newBranches;
       if (state.branches.length && !state.branches.some(function(b){ return b.branch === state.activeBranch; })){
@@ -4286,7 +4357,8 @@
       applyPendingToBranches();
       state.lastSynced = new Date();
       state.online = true;
-      saveCachedBranches();
+      // Only rewrite the (large) on-device cache when the data actually changed.
+      if (changed) saveCachedBranches();
       if (state._syncWasFailing){
         // The previous sync attempt(s) had failed and this one succeeded —
         // let the bell reflect that the problem has resolved itself
@@ -4368,12 +4440,15 @@
   async function attemptRemoteBulkSave(branch, updates){
     var res;
     try{
+      var bulkBody = JSON.stringify({ action:'bulkUpdate', branch:branch, updates:updates });
       res = await fetchWithTimeout(state.url, {
         method:'POST',
         headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action:'bulkUpdate', branch:branch, updates:updates }),
-        keepalive: true
-      }, 20000);
+        body: bulkBody,
+        // Browsers reject keepalive requests over ~64KB, which made big
+        // imports (long Old Remarks) fail as a fake "offline" error.
+        keepalive: bulkBody.length < 60000
+      }, 25000);
     }catch(networkErr){
       var e1 = new Error('offline');
       e1.isNetworkError = true;
@@ -4415,6 +4490,39 @@
 
   async function flushQueueOnce(){
     var queue = state.pendingQueue.slice();
+    // FAST PATH: when several edits are waiting (e.g. after being offline),
+    // send them as ONE bulkUpdate per branch instead of one request each.
+    // Anything the backend rejects, or any failure, falls back to the
+    // original one-by-one path below, so nothing can be lost.
+    if (queue.length > 1){
+      var byBranch = {};
+      queue.forEach(function(it){ (byBranch[it.branch] = byBranch[it.branch] || []).push(it); });
+      var leftover = [];
+      var names = Object.keys(byBranch);
+      for (var bi = 0; bi < names.length; bi++){
+        var group = byBranch[names[bi]];
+        if (group.length < 2){ leftover.push.apply(leftover, group); continue; }
+        for (var gs = 0; gs < group.length; gs += 25){
+          var slice = group.slice(gs, gs + 25);
+          try{
+            var bulk = await attemptRemoteBulkSave(names[bi], slice.map(function(it){ return { row: it.row, field: it.field, value: it.value }; }));
+            if (bulk && bulk.rejected && bulk.rejected.length){ leftover.push.apply(leftover, slice); continue; }
+            slice.forEach(function(item){
+              unqueueWrite(item.branch, item.row, item.field, item.ts);
+              if (item.field === 'Auditor Remarks'){
+                var nm = customerNameFor(item.branch, item.row);
+                pushRemarksLogEntry(item.branch, item.row, nm, item.value, 'synced', true, item.previousValue);
+                pushNotification('synced', 'Offline remarks synced — ' + (nm || 'customer'), item.branch + ' • Saved to your Google Sheet.', { branch: item.branch, row: item.row, status: 'resolved' });
+              }
+            });
+          }catch(bulkErr){
+            if (bulkErr.isNetworkError){ state.online = false; render(); return; }
+            leftover.push.apply(leftover, slice);
+          }
+        }
+      }
+      queue = leftover;
+    }
     for (var i = 0; i < queue.length; i++){
       var item = queue[i];
       try{
@@ -4545,6 +4653,45 @@
       }
     }
     render();
+  }
+
+  // Manual delete of ONE customer row from the Google Sheet. Deleting a row
+  // shifts every row under it up by one, so this refuses to run while this
+  // branch still has unsynced edits (they would land on the wrong row), and
+  // the backend double-checks name + engine no before deleting anything.
+  async function handleDeleteCustomer(){
+    var b = currentBranch();
+    var r = state.selected;
+    if (!b || !r || state.deletingCustomer) return;
+    var name = String(r['Customer Name'] || '').trim();
+    if (isOffline()){
+      alert('Delete needs an internet connection. Please reconnect and try again.');
+      return;
+    }
+    if (state.pendingQueue.some(function(it){ return it.branch === b.branch; })){
+      alert('There are still unsynced changes on ' + b.branch + '. Wait for them to sync (or tap Sync now), then try deleting again.');
+      return;
+    }
+    if (!confirm('Delete "' + name + '" from ' + b.branch + '?\n\nThis removes the whole row from the Google Sheet. A copy is saved in the "Deleted Customers Log" tab.')) return;
+    state.deletingCustomer = true; renderKeepScroll();
+    try{
+      var res = await fetchWithTimeout(state.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'deleteCustomer', branch: b.branch, row: r._row, customerName: name, engineNo: r['Engine No'] || '' })
+      }, 25000);
+      var data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Could not delete.');
+      clearDraft(b.branch, r._row);
+      state.deletingCustomer = false;
+      closeDetail();
+      pushNotification('success', 'Customer deleted \u2014 ' + (name || 'customer'), b.branch + ' \u2022 Removed from the Google Sheet (copy kept in "Deleted Customers Log").', { status: 'success' });
+      await fetchData();
+    }catch(err){
+      state.deletingCustomer = false;
+      renderKeepScroll();
+      alert('Could not delete: ' + err.message);
+    }
   }
 
   async function handleSaveRemarks(){
@@ -5071,7 +5218,7 @@
         icon: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="10" x2="9" y2="20"/>' },
       { id: 'compact', label: 'Compact', desc: 'Customer name only',
         icon: '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>' },
-      { id: 'full', label: 'Full details', desc: 'All customer info, no clicking needed',
+      { id: 'full', label: 'Full details', desc: 'One horizontal row per customer, with old remarks',
         icon: '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><line x1="13" y1="10" x2="18" y2="10"/><line x1="13" y1="14" x2="18" y2="14"/>' }
     ];
     var svg = function(inner, cls){
@@ -5119,6 +5266,22 @@
     });
   }
 
+  // Old remarks, one line per dated entry ("[Month D, YYYY] text"). Always
+  // rendered on the row (with a "No old remarks" placeholder) so it is visible
+  // on every customer instead of only appearing when the field has data.
+  function oldRemarksHtml(text){
+    var t = String(text || '').trim();
+    if (!t) return '<div class="cc-remarks-text empty">No old remarks</div>';
+    var parts = (typeof splitOldRemarksEntries === 'function') ? splitOldRemarksEntries(t) : [t];
+    return '<div class="cc-old-list">' + parts.map(function(p){
+      var txt = String(p).trim();
+      var m = /^\[([^\]]+)\]\s*([\s\S]*)$/.exec(txt);
+      return m
+        ? '<div class="cc-old-entry"><span class="cc-old-date">' + esc(m[1]) + '</span>' + esc(m[2]) + '</div>'
+        : '<div class="cc-old-entry">' + esc(txt) + '</div>';
+    }).join('') + '</div>';
+  }
+
   function fullCardsHtml(b, rows){
     return '<div class="cardswrap">' + rows.map(function(r){
       var remarks = r['Auditor Remarks'] || '';
@@ -5128,7 +5291,7 @@
       var rowHasDraft = rowDraft !== null && rowDraft !== remarks;
       var hl = rowHighlightCls(r, remarks);
       var pairs = customerDetailPairs(b, r).map(function(p){
-        return '<div><div class="cc-k">' + esc(p.k) + '</div><div class="cc-v' + (p.red ? ' amount-red' : '') + '">' + esc(p.v) + '</div></div>';
+        return '<div><div class="cc-k" title="' + esc(p.k) + '">' + esc(p.k) + '</div><div class="cc-v' + (p.red ? ' amount-red' : '') + (p.blank ? ' blank' : '') + '">' + esc(p.v) + '</div></div>';
       }).join('');
       return '<div class="ccard' + hl + '" data-row="' + r._row + '">' +
         '<div class="ccard-head">' +
@@ -5140,9 +5303,11 @@
           '<span class="status-chip ' + statusClass(r['Customer Status']) + '">' + esc(r['Customer Status'] || '\u2014') + '</span>' +
         '</div>' +
         '<div class="ccard-grid">' + pairs + '</div>' +
-        '<div class="ccard-remarks"><div class="cc-k">Auditor remarks</div>' +
-          '<div class="cc-remarks-text' + (remarks ? '' : ' empty') + '">' + esc(remarks || 'No remarks yet \u2014 tap to add') + '</div></div>' +
-        (String(oldRemarks).trim() ? '<div class="ccard-remarks"><div class="cc-k">Old remarks</div><div class="cc-remarks-text">' + esc(oldRemarks) + '</div></div>' : '') +
+        '<div class="ccard-side">' +
+          '<div class="ccard-remarks"><div class="cc-k">Auditor remarks</div>' +
+            '<div class="cc-remarks-text' + (remarks ? '' : ' empty') + '">' + esc(remarks || 'No remarks yet \u2014 tap to add') + '</div></div>' +
+          '<div class="ccard-remarks"><div class="cc-k">Old remarks</div>' + oldRemarksHtml(oldRemarks) + '</div>' +
+        '</div>' +
       '</div>';
     }).join('') + '</div>';
   }
@@ -6190,6 +6355,7 @@
             draftStatus +
             '<div class="save-row">' +
               '<button class="btn gold" id="saveBtn"' + (state.savingRemarks ? ' disabled' : '') + '>' + (state.savingRemarks ? 'Saving...' : 'Save remarks') + '</button>' +
+              '<button class="btn danger" id="deleteCustomerBtn"' + (state.deletingCustomer ? ' disabled' : '') + ' title="Permanently remove this customer row from the Google Sheet">' + (state.deletingCustomer ? 'Deleting...' : '\uD83D\uDDD1 Delete customer') + '</button>' +
               remarksSaveStatus +
             '</div>' +
           '</div>' +
@@ -9033,6 +9199,8 @@
     if (closeBtn) closeBtn.onclick = function(){ closeDetail(); };
     var saveBtn = document.getElementById('saveBtn');
     if (saveBtn) saveBtn.onclick = handleSaveRemarks;
+    var deleteCustomerBtn = document.getElementById('deleteCustomerBtn');
+    if (deleteCustomerBtn) deleteCustomerBtn.onclick = handleDeleteCustomer;
     var alreadyPaidBtn = document.getElementById('alreadyPaidBtn');
     if (alreadyPaidBtn) alreadyPaidBtn.onclick = handleAlreadyPaid;
     var alreadyPaidDateInput = document.getElementById('alreadyPaidDateInput');
@@ -9174,9 +9342,13 @@
       render();
     }
     if (state.url){
-      await fetchData();
+      // Pending edits go out right away (in parallel with the refresh). If
+      // we already showed cached data, refresh silently — no spinner, no
+      // re-render unless the sheet actually changed.
+      var hadCache = state.branches.length > 0;
       flushQueue();
       flushReportsQueue();
+      await fetchData(hadCache ? { silent: true } : undefined);
     } else {
       render();
     }
