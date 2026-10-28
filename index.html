@@ -389,7 +389,7 @@
 
   /* Full details: every customer as ONE horizontal row —
      [ name + status ] [ all account fields in a strip ] [ auditor remarks + old remarks ] */
-  .cardswrap{ display:flex; flex-direction:column; gap:8px; }
+  .cardswrap{ display:flex; flex-direction:column; gap:8px; padding-bottom:84px; }
   .ccard{
     background:var(--paper-card); border:1px solid var(--rule); border-radius:var(--radius);
     box-shadow:0 2px 8px rgba(16,42,67,0.07); padding:10px 14px; cursor:pointer;
@@ -407,7 +407,7 @@
   .ccard-name{ font-weight:700; font-size:14px; line-height:1.3; min-width:0; overflow-wrap:anywhere; }
   .ccard-head .status-chip{ flex-shrink:0; }
   .ccard-grid{
-    display:grid; grid-template-columns:repeat(auto-fill, minmax(132px, 1fr));
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
     gap:7px 14px; align-content:start;
   }
   .cc-k{ font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -418,6 +418,14 @@
   .cc-remarks-text{ font-size:12.5px; white-space:pre-wrap; overflow-wrap:anywhere; }
   .cc-remarks-text.empty{ font-style:italic; color:#A6A093; }
   /* Old remarks: one line per dated entry, kept short so rows stay compact (scrolls if long). */
+  .ccard-actions{ margin-top:auto; padding-top:6px; display:flex; justify-content:flex-end; }
+  .cc-del{
+    font:inherit; font-size:12px; font-weight:600; cursor:pointer;
+    padding:5px 12px; border-radius:8px; border:1px solid #B3261E; color:#B3261E; background:transparent;
+    transition:background .12s ease, color .12s ease;
+  }
+  .cc-del:hover{ background:#B3261E; color:#fff; }
+  .cc-del:disabled{ opacity:.5; cursor:default; }
   .cc-old-list{ max-height:84px; overflow-y:auto; padding-right:4px; display:flex; flex-direction:column; gap:3px; }
   .cc-old-entry{ font-size:12px; line-height:1.4; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--ink); }
   .cc-old-date{ display:inline-block; margin-right:6px; padding:0 6px; border-radius:6px; background:var(--brass-light); color:var(--brass-dark); font-weight:700; font-size:10.5px; white-space:nowrap; }
@@ -4659,9 +4667,9 @@
   // shifts every row under it up by one, so this refuses to run while this
   // branch still has unsynced edits (they would land on the wrong row), and
   // the backend double-checks name + engine no before deleting anything.
-  async function handleDeleteCustomer(){
+  async function handleDeleteCustomer(rowArg){
     var b = currentBranch();
-    var r = state.selected;
+    var r = rowArg || state.selected;
     if (!b || !r || state.deletingCustomer) return;
     var name = String(r['Customer Name'] || '').trim();
     if (isOffline()){
@@ -5307,6 +5315,7 @@
           '<div class="ccard-remarks"><div class="cc-k">Auditor remarks</div>' +
             '<div class="cc-remarks-text' + (remarks ? '' : ' empty') + '">' + esc(remarks || 'No remarks yet \u2014 tap to add') + '</div></div>' +
           '<div class="ccard-remarks"><div class="cc-k">Old remarks</div>' + oldRemarksHtml(oldRemarks) + '</div>' +
+          '<div class="ccard-actions"><button type="button" class="cc-del" data-del-row="' + r._row + '"' + (state.deletingCustomer ? ' disabled' : '') + ' title="Delete this customer from the Google Sheet">\uD83D\uDDD1 Delete</button></div>' +
         '</div>' +
       '</div>';
     }).join('') + '</div>';
@@ -5348,7 +5357,15 @@
         return LANDING_DEFAULT_CATEGORIES.indexOf(status) !== -1;
       });
     }
-    return rows;
+    // Customers still WITHOUT remarks stay on top so it's easy to see who
+    // is left to audit; once a customer has Auditor Remarks (and so gets the
+    // highlight) they sink to the bottom. Stable: original order is kept
+    // inside each group.
+    var pending = [], done = [];
+    rows.forEach(function(r){
+      if (String(r['Auditor Remarks'] || '').trim()) done.push(r); else pending.push(r);
+    });
+    return pending.concat(done);
   }
 
   function branchStatusOptions(b){
@@ -9200,7 +9217,16 @@
     var saveBtn = document.getElementById('saveBtn');
     if (saveBtn) saveBtn.onclick = handleSaveRemarks;
     var deleteCustomerBtn = document.getElementById('deleteCustomerBtn');
-    if (deleteCustomerBtn) deleteCustomerBtn.onclick = handleDeleteCustomer;
+    if (deleteCustomerBtn) deleteCustomerBtn.onclick = function(){ handleDeleteCustomer(); };
+    document.querySelectorAll('.cc-del').forEach(function(btn){
+      btn.onclick = function(ev){
+        ev.stopPropagation(); // don't also open the customer drawer
+        var rowNum = parseInt(btn.getAttribute('data-del-row'), 10);
+        var b = currentBranch();
+        var row = b && b.rows.filter(function(x){ return x._row === rowNum; })[0];
+        if (row) handleDeleteCustomer(row);
+      };
+    });
     var alreadyPaidBtn = document.getElementById('alreadyPaidBtn');
     if (alreadyPaidBtn) alreadyPaidBtn.onclick = handleAlreadyPaid;
     var alreadyPaidDateInput = document.getElementById('alreadyPaidDateInput');
