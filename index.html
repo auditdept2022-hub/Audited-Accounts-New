@@ -5781,6 +5781,7 @@
                 '<button id="downloadBranchBtn">⭳ Download</button>' +
                 '<button id="printBranchBtn">🖶 Print</button>' +
                 '<button id="driveTransferBtn">☁ Receipt Monitoring</button>' +
+                '<button id="assetsSheetBtn">🏍 Motorlandia Assets</button>' +
                 '<div class="menu-sep"></div>' +
                 '<button id="draftReportBtn">🗒 Draft Report</button>' +
                 '<button id="auditSheetBtn">📋 Audit Sheet</button>' +
@@ -9225,6 +9226,12 @@
       // modal is still in the code -- set state.driveOpen = true here to bring it back.)
       var link = (state.driveSheetLink || DEFAULT_DRIVE_SHEET_LINK || '').trim();
       window.open(link, '_blank', 'noopener');
+      render();
+    };
+    var assetsSheetBtn = document.getElementById('assetsSheetBtn');
+    if (assetsSheetBtn) assetsSheetBtn.onclick = function(){
+      state.menuOpen = false;
+      window.open('https://docs.google.com/spreadsheets/d/1q04GE2IMy2hw7qDEkhY_AMJbIHs8GE7lSGAPjvya_6w/edit?usp=sharing', '_blank', 'noopener');
       render();
     };
     bindDriveEvents();
