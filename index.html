@@ -1778,12 +1778,27 @@
     return new Promise(function(resolve){
       var c = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       var t = setTimeout(function(){ if (c) c.abort(); resolve(false); }, ms);
-      fetch(url + '?_=' + Date.now(), { mode:'no-cors', cache:'no-store', signal: c ? c.signal : undefined })
+      fetch(url + (url.indexOf('?') === -1 ? '?' : '&') + '_=' + Date.now(), { mode:'no-cors', cache:'no-store', signal: c ? c.signal : undefined })
         .then(function(){ clearTimeout(t); resolve(true); }, function(){ clearTimeout(t); resolve(false); });
     });
   }
+  // Probes run IN PARALLEL and count as "online" if ANY of them answers -- including
+  // the Google Sheet backend itself. Before, only gstatic/google were tried, so an
+  // ISP/DNS/ad-blocker that blocks those made the app think it was offline (red
+  // status) even with a strong signal, and it never recovered on its own.
   function probeNetwork(){
-    return probeOnce(NET_PROBE_URLS[0], 4000).then(function(ok){ return ok || probeOnce(NET_PROBE_URLS[1], 4000); });
+    var urls = NET_PROBE_URLS.slice();
+    if (state.url) urls.push(state.url + (state.url.indexOf('?') === -1 ? '?' : '&') + 'ping=1');
+    return new Promise(function(resolve){
+      var pending = urls.length, done = false;
+      urls.forEach(function(u){
+        probeOnce(u, 6000).then(function(ok){
+          if (done) return;
+          if (ok){ done = true; resolve(true); }
+          else if (--pending === 0){ done = true; resolve(false); }
+        });
+      });
+    });
   }
   function markNetDown(){
     if (_netProbing || state._netDown) return;
@@ -1839,6 +1854,30 @@
   // the Google Sheet backend fails fast with a clear "timed out" message
   // instead of hanging indefinitely.
   var FETCH_TIMEOUT_MS = 12000;
+  var DATA_FETCH_TIMEOUT_MS = 30000;
+  // Like fetchWithTimeout, but the timer also covers downloading the BODY. The old
+  // code cleared its timer as soon as headers arrived, so a stalled body on mobile
+  // data hung forever -- and the shared in-flight request then blocked every later
+  // refresh, leaving "Synced 17m ago" stuck.
+  async function fetchTextWithTimeout(url, opts, timeoutMs){
+    var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var ms = timeoutMs || DATA_FETCH_TIMEOUT_MS;
+    var timer = null;
+    var finalOpts = Object.assign({}, opts || {});
+    if (controller){ finalOpts.signal = controller.signal; timer = setTimeout(function(){ controller.abort(); }, ms); }
+    try{
+      var res = await fetch(url, finalOpts);
+      return await res.text();
+    }catch(err){
+      try{ markNetDown(); }catch(_e){}
+      if (err && err.name === 'AbortError'){
+        throw new Error('Request timed out after ' + Math.round(ms / 1000) + 's — the Google Sheet backend took too long to respond.');
+      }
+      throw err;
+    }finally{
+      clearTimeout(timer);
+    }
+  }
   function fetchWithTimeout(url, opts, timeoutMs){
     var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = null;
@@ -4176,7 +4215,32 @@
   });
 
 
+  // Values this device just saved (or is saving). A refresh already in flight,
+  // or a stale reply, must never overwrite them on screen -- that is what made
+  // saved remarks "disappear". Kept ~2 min, dropped once the sheet shows the same value.
+  var _recentSaves = {};
+  var RECENT_SAVE_TTL_MS = 120000;
+  function markRecentSave(branch, row, field, value){
+    _recentSaves[qkey(branch, row, field)] = { branch:branch, row:row, field:field, value:value, ts:Date.now() };
+  }
+  function clearRecentSave(branch, row, field){ delete _recentSaves[qkey(branch, row, field)]; }
+  function applyRecentSaves(){
+    var now = Date.now();
+    Object.keys(_recentSaves).forEach(function(k){
+      var it = _recentSaves[k];
+      if (now - it.ts > RECENT_SAVE_TTL_MS){ delete _recentSaves[k]; return; }
+      var b = state.branches.find(function(x){ return x.branch === it.branch; });
+      var r = b && b.rows.find(function(x){ return x._row === it.row; });
+      if (!r) return;
+      var cur = String(r[it.field] == null ? '' : r[it.field]).trim();
+      var want = String(it.value == null ? '' : it.value).trim();
+      if (cur === want){ if (now - it.ts > 5000) delete _recentSaves[k]; return; }
+      r[it.field] = it.value;
+    });
+  }
+
   function applyPendingToBranches(){
+    applyRecentSaves();
     state.pendingQueue.forEach(function(item){
       var b = state.branches.find(function(x){ return x.branch === item.branch; });
       if (!b) return;
@@ -4275,13 +4339,15 @@
           state._retryDelayMs = Math.min(state._retryDelayMs * 2, 30000);
           fetchData({ silent: true });
         }
-      } else if (tickCount % 30 === 0 && readyToRefresh){
+      } else if (state.online && !state.loading && document.visibilityState === 'visible' &&
+                 (Date.now() - (state.lastSynced ? state.lastSynced.getTime() : 0)) > 30000 &&
+                 (Date.now() - _lastRefreshAt) > 10000){
         // Light background refresh every 30s so everyone sees fresh data
         // without tapping the sync button — silent (no spinner, no rebuild
         // unless data actually changed) so it doesn't cause the periodic
         // full-page flicker. Skipped while a record is open so it doesn't
         // interrupt someone mid-edit, and while offline.
-        fetchData({ silent: true });
+        fetchData({ silent: true, noRender: !!state.selected });
       }
     }, 1000);
   }
@@ -4389,12 +4455,13 @@
   // Background (silent) refreshes share one in-flight request instead of
   // stacking up; explicit/forced refreshes (after an import or save) always
   // run so they can never be answered by an older, already-started request.
-  var _fetchInFlight = null;
+  var _fetchInFlight = null, _fetchInFlightAt = 0;
   function fetchData(opts){
     if (opts && opts.silent){
-      if (_fetchInFlight) return _fetchInFlight;
+      // A request stuck for 35s+ no longer blocks new refreshes.
+      if (_fetchInFlight && Date.now() - _fetchInFlightAt < 35000) return _fetchInFlight;
       var p = fetchDataImpl(opts);
-      _fetchInFlight = p;
+      _fetchInFlight = p; _fetchInFlightAt = Date.now();
       var clear = function(){ if (_fetchInFlight === p) _fetchInFlight = null; };
       p.then(clear, clear);
       return p;
@@ -4405,7 +4472,12 @@
   async function fetchDataImpl(opts){
     var silent = !!(opts && opts.silent);
     _lastRefreshAt = Date.now();
-    if (isOffline()){
+    // A false "offline" (probe blocked by ISP/DNS) must never lock the app: when the
+    // browser itself says online and the user did not go manual-offline, a non-silent
+    // refresh (Sync now / after import / first load) tries the backend for real.
+    var tryDespiteProbe = !silent && state._netDown && !state.manualOffline &&
+      !(typeof navigator !== 'undefined' && navigator.onLine === false);
+    if (isOffline() && !tryDespiteProbe){
       syncOnlineState();
       if (!state.branches.length){
         // No cache and no connection - genuinely nothing to show yet.
@@ -4430,18 +4502,19 @@
       // response for this same URL — without this, "Sync now" could look
       // like it did nothing because it was served a stale cached reply
       // instead of actually hitting the Apps Script backend.
-      var fetchUrl = state.url + (state.url.indexOf('?') === -1 ? '?' : '&') + '_ts=' + Date.now();
+      var fetchUrl = state.url + (state.url.indexOf('?') === -1 ? '?' : '&') + '_ts=' + Date.now() +
+        ((!silent || (opts && opts.fresh)) ? '&fresh=1' : '');
       // One automatic quick retry: an Apps Script cold start or a dropped
       // packet on mobile data used to surface as "Sync failed" straight away.
       var rawText;
       try{
-        rawText = await (await fetchWithTimeout(fetchUrl, { method:'GET', cache:'no-store' }, FETCH_TIMEOUT_MS)).text();
+        rawText = await fetchTextWithTimeout(fetchUrl, { method:'GET', cache:'no-store' }, DATA_FETCH_TIMEOUT_MS);
       }catch(firstErr){
         // Background refreshes don't retry (the next tick will) -- a second
         // 12s wait just delayed the "failed" state and stacked up requests.
-        if (silent || isOffline()) throw firstErr;
+        if ((silent && !(opts && opts.retry)) || isOffline()) throw firstErr;
         await new Promise(function(r){ setTimeout(r, 500); });
-        rawText = await (await fetchWithTimeout(fetchUrl + '&r=1', { method:'GET', cache:'no-store' }, FETCH_TIMEOUT_MS)).text();
+        rawText = await fetchTextWithTimeout(fetchUrl + '&r=1', { method:'GET', cache:'no-store' }, DATA_FETCH_TIMEOUT_MS);
       }
       // Fast path: identical reply to the last one -> skip JSON.parse, the
       // re-apply of pending edits and the cache write entirely. This is the
@@ -4490,6 +4563,12 @@
         resolveNotificationsByTitle('Sync failed');
         pushNotification('synced', 'Sync restored', 'Data loaded successfully from the Google Sheet after an earlier connection problem.', { status: 'resolved' });
       }
+      if (silent && opts && opts.noRender){
+        // A record is open: refresh data/cache in the background but don't redraw
+        // the screen under the auditor's hands.
+        tickClock();
+        return;
+      }
       if (silent && !changed){
         // Nothing visibly changed — just quietly update the "synced Xs ago"
         // label instead of rebuilding the whole screen.
@@ -4533,6 +4612,7 @@
 
   async function attemptRemoteSave(branch, row, field, value){
     var res;
+    markRecentSave(branch, row, field, value);
     try{
       res = await fetchWithTimeout(state.url, {
         method:'POST',
@@ -4541,17 +4621,19 @@
         keepalive: true
       }, FETCH_TIMEOUT_MS);
     }catch(networkErr){
+      clearRecentSave(branch, row, field);
       var e1 = new Error('offline');
       e1.isNetworkError = true;
       throw e1;
     }
     var data;
     try{ data = await res.json(); }catch(parseErr){
+      clearRecentSave(branch, row, field);
       var e2 = new Error('offline');
       e2.isNetworkError = true;
       throw e2;
     }
-    if (!data.success) throw new Error(data.error || 'Could not save.');
+    if (!data.success){ clearRecentSave(branch, row, field); throw new Error(data.error || 'Could not save.'); }
     return true;
   }
 
@@ -4561,6 +4643,8 @@
   // execution instead of us waiting on hundreds of round trips.
   async function attemptRemoteBulkSave(branch, updates){
     var res;
+    updates.forEach(function(u){ markRecentSave(branch, u.row, u.field, u.value); });
+    var _clearBulk = function(){ updates.forEach(function(u){ clearRecentSave(branch, u.row, u.field); }); };
     try{
       var bulkBody = JSON.stringify({ action:'bulkUpdate', branch:branch, updates:updates });
       res = await fetchWithTimeout(state.url, {
@@ -4572,17 +4656,19 @@
         keepalive: bulkBody.length < 60000
       }, 25000);
     }catch(networkErr){
+      _clearBulk();
       var e1 = new Error('offline');
       e1.isNetworkError = true;
       throw e1;
     }
     var data;
     try{ data = await res.json(); }catch(parseErr){
+      _clearBulk();
       var e2 = new Error('offline');
       e2.isNetworkError = true;
       throw e2;
     }
-    if (!data.success) throw new Error(data.error || 'Could not save.');
+    if (!data.success){ _clearBulk(); throw new Error(data.error || 'Could not save.'); }
     return data;
   }
 
@@ -9644,7 +9730,7 @@
       var hadCache = state.branches.length > 0;
       flushQueue();
       flushReportsQueue();
-      await fetchData(hadCache ? { silent: true } : undefined);
+      await fetchData(hadCache ? { silent: true, fresh: true, retry: true } : undefined);
     } else {
       render();
     }
