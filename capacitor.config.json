@@ -1,0 +1,11 @@
+{
+  "appId": "com.jla.auditdashboard",
+  "appName": "Audited Accounts",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
