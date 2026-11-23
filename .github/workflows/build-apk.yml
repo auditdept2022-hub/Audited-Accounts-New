@@ -1,0 +1,97 @@
+name: Build APK & Auto Release
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'resources/README.txt'
+  workflow_dispatch:        # "Run workflow" button, for a manual build/release
+
+permissions:
+  contents: write           # needed to create the Release
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: false # never cancel a build that is mid-release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set version
+        run: |
+          # versionCode must always go UP or Android refuses the update.
+          # run_number goes up by 1 on every workflow run.
+          echo "VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+          echo "VERSION_NAME=1.0.${{ github.run_number }}" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prepare web files (www/)
+        run: |
+          mkdir -p www
+          # Root files are the source of truth if they exist.
+          # (Keeps index.html in the repo root and www/ from drifting apart.)
+          for f in index.html manifest.json service-worker.js icon-192.png icon-512.png icon-maskable-192.png icon-maskable-512.png; do
+            [ -f "$f" ] && cp "$f" "www/$f" || true
+          done
+          test -f www/index.html || { echo "No index.html found"; exit 1; }
+          ls -la www
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Optional - generate icon/splash (only if resources/icon.png exists)
+        run: |
+          if [ -f resources/icon.png ]; then
+            npm install --no-save @capacitor/assets
+            npx capacitor-assets generate --android
+          else
+            echo "No resources/icon.png - using default icon"
+          fi
+
+      - name: Copy web files into Android project
+        run: npx cap sync android
+
+      - name: Apply fixed signing key + version
+        run: python3 scripts/patch-gradle.py
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk AuditedAccounts-v${VERSION_NAME}.apk
+
+      - name: Upload APK (Actions artifact backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AuditedAccounts-APK
+          path: AuditedAccounts-v*.apk
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }}
+          name: Audited Accounts v${{ env.VERSION_NAME }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          make_latest: true
+          files: AuditedAccounts-v*.apk
